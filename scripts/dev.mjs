@@ -1,11 +1,13 @@
+import { randomBytes } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 for (const file of [resolve("../.env"), resolve(".env")])
   if (existsSync(file)) process.loadEnvFile(file);
-process.env.CORE_PORT ??= "4000";
-process.env.PORT ??= "3000";
-process.env.CORE_BASE_URL ??= `http://127.0.0.1:${process.env.CORE_PORT}`;
+process.env.CORE_INTERNAL_TOKEN ||= randomBytes(32).toString("hex");
+process.env.CORE_PORT ||= "4000";
+process.env.PORT ||= "3000";
+process.env.CORE_BASE_URL ||= `http://127.0.0.1:${process.env.CORE_PORT}`;
 if (
   !process.env.DATABASE_URL &&
   process.env.MOCK !== "1" &&
@@ -50,12 +52,12 @@ start("cargo", [
 ]);
 start("npm", [
   "run",
-  "dev",
+  process.argv.includes("--production") ? "start" : "dev",
   "-w",
   "@alice/web",
   "--",
   "--hostname",
-  "127.0.0.1",
+  "0.0.0.0",
   "--port",
   process.env.PORT,
 ]);

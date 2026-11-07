@@ -73,12 +73,11 @@ fn one(a: &Audience, id: &str, rs: &[&Reaction], c: &Constants) -> Outcome {
     let mut attention = vec![0.; n];
     let mut share = vec![0.; n];
     let mut click = vec![0.; n];
+    let lookup: std::collections::HashMap<&str, &&Reaction> =
+        rs.iter().map(|r| (r.archetype_id.as_str(), r)).collect();
     for (i, p) in a.personas.iter().enumerate() {
         let arc = format!("arc-{}", p.archetype_index);
-        let r = rs
-            .iter()
-            .find(|r| r.archetype_id == arc)
-            .expect("complete reaction set");
+        let r = lookup.get(arc.as_str()).expect("complete reaction set");
         let d = |k| draw(a.seed, i, k);
         attention[i] = (r.attention + (d(500) - 0.5) * 0.20).clamp(0.05, 0.95);
         if r.attention == 0. {

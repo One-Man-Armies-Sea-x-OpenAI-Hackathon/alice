@@ -11,7 +11,8 @@
     "test": "tsx --test packages/agents/test/*.test.ts && cargo test --manifest-path services/core/Cargo.toml",
     "typecheck": "tsc --noEmit -p apps/web/tsconfig.json",
     "prime": "tsx scripts/prime.ts",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "node scripts/revision-qa.mjs",
+    "start": "node scripts/dev.mjs --production"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",

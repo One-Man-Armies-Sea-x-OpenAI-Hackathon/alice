@@ -1,4 +1,4 @@
-import Alice from "../components/Alice";
+import AuthGate from "../components/AuthGate";
 export default function Page() {
-  return <Alice />;
+  return <AuthGate />;
 }

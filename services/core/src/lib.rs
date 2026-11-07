@@ -4,3 +4,5 @@ pub mod audience;
 pub mod config;
 pub mod sim;
 pub mod store;
+
+pub mod scenario;

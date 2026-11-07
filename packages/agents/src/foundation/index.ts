@@ -1,4 +1,8 @@
 import OpenAI from "openai";
+import { AsyncLocalStorage } from "node:async_hooks";
+const accountContext = new AsyncLocalStorage<string>();
+export const withAccount = <T>(userId: string, task: () => T): T =>
+  accountContext.run(userId, task);
 import {
   Agent,
   Runner,
@@ -17,10 +21,11 @@ export const root = () => {
   return p.endsWith("/apps/web") ? resolve(p, "../..") : p;
 };
 export const mockMode = () => ["1", "true"].includes(process.env.MOCK ?? "");
-// Docs MCP checked 2026-11-07: https://developers.openai.com/api/docs/models/gpt-4.1-mini
+// Persona model, MCP checked 2026-11-07: https://developers.openai.com/api/docs/models/gpt-5.6-luna
 // https://developers.openai.com/api/docs/models/gpt-4.1 — configurable model roles; all variants use reaction.
+const DEFAULT_PERSONA_MODEL = "gpt-5.6-luna";
 export const models = () => ({
-  reaction: process.env.REACTION_MODEL || "gpt-4.1-mini",
+  reaction: process.env.REACTION_MODEL || DEFAULT_PERSONA_MODEL,
   analysis: process.env.ANALYSIS_MODEL || "gpt-4.1",
 });
 export const coreBase = () =>
@@ -32,7 +37,12 @@ export async function core<T = any>(
 ): Promise<T> {
   const r = await fetch(coreBase() + path, {
     method: method ?? (body ? "POST" : "GET"),
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(process.env.CORE_INTERNAL_TOKEN
+        ? { Authorization: `Bearer ${process.env.CORE_INTERNAL_TOKEN}` }
+        : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(120000),
     cache: "no-store",
@@ -65,7 +75,7 @@ export class Budget {
   estimated_usd = 0;
   cap: number;
   shouldStop?: () => boolean;
-  constructor(cap = Number(process.env.MAX_CALLS_PER_RUN || 640)) {
+  constructor(cap = Number(process.env.MAX_CALLS_PER_RUN || 16000)) {
     this.cap = cap;
   }
   take() {
@@ -78,7 +88,7 @@ export class Budget {
   }
 }
 export function estimate(c: Campaign) {
-  const a = tiers[c.depth].archetypes;
+  const a = tiers[c.depth].personas;
   const reaction = a * (c.variants.length + (c.variants.length > 1 ? 1 : 0));
   const fixes =
     c.tools.risk && c.tools.rewrite
@@ -89,7 +99,7 @@ export function estimate(c: Campaign) {
     calls,
     reaction_calls: reaction,
     fix_reserve: fixes,
-    cap: Number(process.env.MAX_CALLS_PER_RUN || 640),
+    cap: Number(process.env.MAX_CALLS_PER_RUN || 16000),
     seconds: Math.ceil(
       (reaction / Number(process.env.LLM_CONCURRENCY || 8)) * 2.5 + 20,
     ),
@@ -161,6 +171,7 @@ export async function structured<T>(
     agent?: boolean;
     mock: () => T;
     guardrail?: () => Promise<{ decision: string; reason: string }>;
+    imageDataUrl?: string;
   },
 ): Promise<T> {
   const model = models()[options.role ?? "analysis"];
@@ -170,10 +181,15 @@ export async function structured<T>(
     .update(
       JSON.stringify(
         canonical({
-          version: 1,
+          version: 2,
+          account_id: accountContext.getStore() ?? "local-tests",
           name,
           model,
+          reasoning_effort: model === DEFAULT_PERSONA_MODEL ? "none" : null,
           json,
+          image_hash: options.imageDataUrl
+            ? createHash("sha256").update(options.imageDataUrl).digest("hex")
+            : null,
           instructions,
           input,
           sample: options.sample ?? 1,
@@ -263,8 +279,26 @@ export async function structured<T>(
             const response = await withTrace(name, () =>
               client.responses.create({
                 model,
+                ...(model === DEFAULT_PERSONA_MODEL
+                  ? { reasoning: { effort: "none" as const } }
+                  : {}),
                 instructions,
-                input: JSON.stringify(input),
+                // MCP: https://developers.openai.com/api/docs/guides/images-vision
+                input: options.imageDataUrl
+                  ? [
+                      {
+                        role: "user",
+                        content: [
+                          { type: "input_text", text: JSON.stringify(input) },
+                          {
+                            type: "input_image",
+                            image_url: options.imageDataUrl,
+                            detail: "low",
+                          },
+                        ],
+                      },
+                    ]
+                  : JSON.stringify(input),
                 text: {
                   format: {
                     type: "json_schema",
@@ -294,7 +328,8 @@ export async function structured<T>(
             };
           }
           done = true;
-          const rates = options.role === "reaction" ? [0.4, 1.6] : [2, 8];
+          // Rates: https://developers.openai.com/api/docs/pricing (2026-11-07).
+          const rates = options.role === "reaction" ? [0.2, 1.2] : [2, 8];
           const cost =
             (usage.input_tokens * rates[0] + usage.output_tokens * rates[1]) /
             1e6;
@@ -326,7 +361,10 @@ export async function structured<T>(
         }
       }
     }
+    const owner = accountContext.getStore();
+    if (owner && !(await storeGet("users", owner))) return data!;
     await storePut("llm_cache", hash, {
+      user_id: accountContext.getStore() ?? "local-tests",
       response: data!,
       model,
       tokens: usage,

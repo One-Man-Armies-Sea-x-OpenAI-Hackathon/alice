@@ -68,3 +68,47 @@ test("risky patterns and mock reactions stay bounded", () => {
   );
   assert.equal(pattern(demos["langkah-run"].variants[0]), undefined);
 });
+test("selling-point findings require repeated low-interest comments", async () => {
+  const { effectivenessFindings } = await import("../src/effectiveness");
+  const c = {
+    ...demos["langkah-run"],
+    variants: [demos["langkah-run"].variants[0]],
+  };
+  const people = Array.from({ length: 4 }, (_, i) => ({
+    id: `arc-${i}`,
+    segment: {
+      region: "jabodetabek",
+      age_band: "25-34",
+      platform: "tiktok",
+      religion: "islam",
+    },
+  })) as any;
+  const rs = people.map((a: any) => ({
+    ...mockReaction(c, a, c.variants[0]),
+    attention: 0.2,
+    sentiment: 0,
+    reason: "Pesannya terlalu umum, manfaat produknya belum jelas.",
+    sample_comment: "Apa keunggulan yang beda dari produk ini?",
+  }));
+  const result: any = {
+    per_variant: [
+      {
+        variant_id: "A",
+        by_dimension: { region: [{ group: "jabodetabek", n: 4, backlash: 0 }] },
+      },
+    ],
+  };
+  assert.equal(
+    effectivenessFindings(c, result, rs, people)[0].rule_id,
+    "weak_value_proposition",
+  );
+  assert.equal(
+    effectivenessFindings(
+      c,
+      result,
+      rs.map((r: any) => ({ ...r, attention: 0.8 })),
+      people,
+    ).length,
+    0,
+  );
+});

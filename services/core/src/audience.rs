@@ -182,16 +182,25 @@ pub fn build(depth: &str, seed: u64, context: Value) -> Audience {
             chosen.push(g)
         }
     }
-    let profiles: Vec<_> = chosen.iter().map(|g| ps[gs[*g][0]].clone()).collect();
-    for p in &mut ps {
-        p.archetype_index = profiles
-            .iter()
-            .enumerate()
-            .min_by_key(|(_, q)| distance(p, q))
-            .unwrap()
-            .0;
+    let individual = context["individual_agents"].as_bool().unwrap_or(false);
+    let profiles: Vec<_> = if individual {
+        ps.clone()
+    } else {
+        chosen.iter().map(|g| ps[gs[*g][0]].clone()).collect()
+    };
+    for (i, p) in ps.iter_mut().enumerate() {
+        p.archetype_index = if individual {
+            i
+        } else {
+            profiles
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, q)| distance(p, q))
+                .unwrap()
+                .0
+        };
     }
-    let archetypes=profiles.iter().enumerate().map(|(j,p)|{let count=ps.iter().filter(|p|p.archetype_index==j).count();json!({"id":format!("arc-{j}"),"segment":{"region":REGIONS[p.region],"city_tier":TIERS[p.city_tier],"age_band":AGES[p.age_band],"religion":RELIGIONS[p.religion],"income_band":(["low","mid","high"][p.income_band]),"platform":PLATFORMS[p.platform],"language_style":(["slang","casual","formal"][p.language_style]),"religiosity_band":if p.religiosity<0.45{"low"}else if p.religiosity<0.7{"mid"}else{"high"}},"weight":count as f64/n as f64,"persona_count":count,"label":format!("{} · {} · {}",REGIONS[p.region],AGES[p.age_band],PLATFORMS[p.platform]),"blurb":""})}).collect();
+    let archetypes=profiles.iter().enumerate().map(|(j,p)|{let count=ps.iter().filter(|p|p.archetype_index==j).count();json!({"id":format!("arc-{j}"),"segment":{"region":REGIONS[p.region],"city_tier":TIERS[p.city_tier],"age_band":AGES[p.age_band],"religion":RELIGIONS[p.religion],"income_band":(["low","mid","high"][p.income_band]),"platform":PLATFORMS[p.platform],"language_style":(["slang","casual","formal"][p.language_style]),"religiosity_band":if p.religiosity<0.45{"low"}else if p.religiosity<0.7{"mid"}else{"high"}},"weight":count as f64/n as f64,"persona_count":count,"label":format!("{} · {} · {}",REGIONS[p.region],AGES[p.age_band],PLATFORMS[p.platform]),"blurb":if individual{format!("Individual synthetic agent {j}. Openness {:.2}; sociability {:.2}; skepticism {:.2}; price sensitivity {:.2}; community orientation {:.2}. Values: {}. Current concern: {}. These are seeded individual attributes, not inferred from religion or ethnicity.",draw(seed,j,1500),draw(seed,j,1501),draw(seed,j,1502),draw(seed,j,1503),draw(seed,j,1504),["practical benefits","creative self-expression","family wellbeing","fairness and transparency","craft and provenance"][((draw(seed,j,1505)*5.) as usize).min(4)],["household budget","time pressure","product credibility","social belonging","environmental impact"][((draw(seed,j,1506)*5.) as usize).min(4)])}else{String::new()}})}).collect();
     let mut graph = vec![vec![]; n];
     let rb: Vec<Vec<usize>> = (0..7)
         .map(|g| {
@@ -265,6 +274,6 @@ pub fn stable_hash(s: &str) -> u64 {
 impl Audience {
     pub fn wire(&self) -> Value {
         let p = &self.personas;
-        json!({"audience_id":self.id,"archetypes":self.archetypes,"personas":{"count":p.len(),"region":p.iter().map(|p|p.region).collect::<Vec<_>>(),"platform":p.iter().map(|p|p.platform).collect::<Vec<_>>(),"city_tier":p.iter().map(|p|p.city_tier).collect::<Vec<_>>(),"age_band":p.iter().map(|p|p.age_band).collect::<Vec<_>>(),"religion":p.iter().map(|p|p.religion).collect::<Vec<_>>(),"income_band":p.iter().map(|p|p.income_band).collect::<Vec<_>>(),"language_style":p.iter().map(|p|p.language_style).collect::<Vec<_>>(),"religiosity":p.iter().map(|p|p.religiosity).collect::<Vec<_>>(),"sensitivity":p.iter().map(|p|p.sensitivity).collect::<Vec<_>>(),"virality":p.iter().map(|p|p.virality).collect::<Vec<_>>(),"longitude":p.iter().map(|p|p.longitude).collect::<Vec<_>>(),"latitude":p.iter().map(|p|p.latitude).collect::<Vec<_>>(),"archetype_index":p.iter().map(|p|p.archetype_index).collect::<Vec<_>>(),"city":p.iter().map(|p|p.city).collect::<Vec<_>>(),"lookups":{"region":REGIONS,"platform":PLATFORMS,"religion":RELIGIONS,"city_tier":TIERS,"age_band":AGES,"cities":serde_json::from_str::<Value>(include_str!("../cities.json")).unwrap().as_array().unwrap().iter().map(|c|c["name"].clone()).collect::<Vec<_>>()}}})
+        json!({"audience_id":self.id,"archetypes":self.archetypes,"connections":self.graph.iter().enumerate().filter_map(|(from,ns)|ns.first().map(|to|json!({"from":from,"to":to,"anger":false}))).take(1500).collect::<Vec<_>>(),"personas":{"count":p.len(),"region":p.iter().map(|p|p.region).collect::<Vec<_>>(),"platform":p.iter().map(|p|p.platform).collect::<Vec<_>>(),"city_tier":p.iter().map(|p|p.city_tier).collect::<Vec<_>>(),"age_band":p.iter().map(|p|p.age_band).collect::<Vec<_>>(),"religion":p.iter().map(|p|p.religion).collect::<Vec<_>>(),"income_band":p.iter().map(|p|p.income_band).collect::<Vec<_>>(),"language_style":p.iter().map(|p|p.language_style).collect::<Vec<_>>(),"religiosity":p.iter().map(|p|p.religiosity).collect::<Vec<_>>(),"sensitivity":p.iter().map(|p|p.sensitivity).collect::<Vec<_>>(),"virality":p.iter().map(|p|p.virality).collect::<Vec<_>>(),"longitude":p.iter().map(|p|p.longitude).collect::<Vec<_>>(),"latitude":p.iter().map(|p|p.latitude).collect::<Vec<_>>(),"archetype_index":p.iter().map(|p|p.archetype_index).collect::<Vec<_>>(),"city":p.iter().map(|p|p.city).collect::<Vec<_>>(),"lookups":{"region":REGIONS,"platform":PLATFORMS,"religion":RELIGIONS,"city_tier":TIERS,"age_band":AGES,"cities":serde_json::from_str::<Value>(include_str!("../cities.json")).unwrap().as_array().unwrap().iter().map(|c|c["name"].clone()).collect::<Vec<_>>()}}})
     }
 }

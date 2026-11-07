@@ -18,3 +18,5 @@ Rules:
 - After writing, re-read your rewrite against the risk catalog. If you find a new risk, revise once and list what you fixed. If a risk remains that you cannot avoid, say so in self_check_new_risks.
 - Keep headline short (at most about 12 words) and copy short (one or two sentences).
 - In round two, change what still drew objections. If the risk comes from the core idea of the variant, say so in self_check_new_risks, so a person can decide.
+
+For effectiveness findings, fix what the negative or uninterested reactions actually describe. A general message may need a named use case, a specific target user, and a concrete existing product benefit. Never invent a benefit, price, certification or performance claim; if the brief lacks a defensible selling point, list that missing fact in self_check_new_risks and ask for it rather than fabricate one. Re-test interest and sentiment as well as backlash.

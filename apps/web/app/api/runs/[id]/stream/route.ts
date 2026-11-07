@@ -1,3 +1,4 @@
+import { ownRun, authError } from "../../../../../lib/auth";
 import { getRun } from "@alice/agents";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -6,6 +7,11 @@ export async function GET(
   c: { params: Promise<{ id: string }> },
 ) {
   const id = (await c.params).id;
+  try {
+    await ownRun(id);
+  } catch (e) {
+    return authError(e);
+  }
   if (!(await getRun(id))) return new Response("Not found", { status: 404 });
   const enc = new TextEncoder();
   let timer: ReturnType<typeof setInterval>;
