@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   type Campaign,
   type Result,
@@ -7,12 +8,14 @@ import {
   type Audience,
   type Reaction,
   type Fix,
-  pretty,
-  tiers,
 } from "@alice/contracts";
-import { demos } from "@alice/contracts/src/demos";
-import Map from "./Map";
-import Dashboard from "./Dashboard";
+import { pretty, tiers } from "../lib/display";
+import dynamic from "next/dynamic";
+const Map = dynamic(() => import("./Map"), { ssr: false });
+const Dashboard = dynamic(() => import("./Dashboard"), {
+  loading: () => <p className="muted">Opening dashboard…</p>,
+});
+const ArtifactWorkspace = dynamic(() => import("./ArtifactWorkspace"));
 type Run = {
   id: string;
   campaign: Campaign;
@@ -38,7 +41,11 @@ type Chat = {
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 function blank(): Campaign {
   return {
-    ...clone(demos["langkah-run"]),
+    campaign_type: "business",
+    objective: "",
+    tools: { risk: true, calendar: true, rewrite: true },
+    depth: "quick",
+    seed: 42,
     id: crypto.randomUUID(),
     brand: "",
     product: "",
@@ -100,10 +107,19 @@ const demoInfo = [
     "✳",
   ],
 ];
-export default function Alice() {
+export default function Alice({
+  user,
+  onLogout,
+  onSettings,
+}: {
+  user: { id: string; name: string; email: string; preferences?: any };
+  onLogout: () => void;
+  onSettings: () => void;
+}) {
   const [chats, setChats] = useState<Chat[]>([]);
   const [active, setActive] = useState("");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [briefInput, setBriefInput] = useState("");
   const [view, setView] = useState("chat");
   const [run, setRun] = useState<Run | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -123,33 +139,40 @@ export default function Alice() {
   const [health, setHealth] = useState<any>(null);
   const [loaded, setLoaded] = useState(false);
   const [skip, setSkip] = useState(false);
+  const [liveSelected, setLiveSelected] = useState<number | null>(null);
   const stream = useRef<EventSource | null>(null);
   const replayTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const currentId = useRef("");
   const latestRun = useRef<Run | null>(null);
   const attach = useRef<HTMLInputElement>(null);
+  const visualInputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [referenceBusy, setReferenceBusy] = useState("");
+  const toolsRef = useRef<HTMLDivElement>(null);
   const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    let list: Chat[] = [];
-    try {
-      list = JSON.parse(localStorage.getItem("alice.chats") || "[]");
-    } catch {}
-    if (!list.length)
-      list = ["langkah-run", "tiket-ceria", "ciliwung"].map((name, i) => ({
-        id: `demo-${i}`,
-        title: demos[name].brand,
-        campaign: clone(demos[name]),
-        demo: name,
-        status: "done",
-        messages: [],
-      }));
-    setChats(list);
+    fetch("/api/conversations")
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Could not load your conversations");
+        return r.json();
+      })
+      .then((body) => {
+        setChats(body.chats.filter((chat: Chat) => !chat.demo));
+        setLoaded(true);
+      })
+      .catch((e) => {
+        setError(e.message);
+      });
+    setSidebar(window.innerWidth >= 820);
     const c = blank();
+    if (user.preferences) {
+      c.depth = user.preferences.depth;
+      c.tools = user.preferences.tools;
+      if (user.preferences.mode === "single") c.variants = [c.variants[0]];
+    }
     setCampaign(c);
     setActive(c.id);
     const t = localStorage.getItem("alice.theme") || "dark";
     setTheme(t);
-    setLoaded(true);
     fetch("/api/health")
       .then((r) => r.json())
       .then(setHealth)
@@ -160,18 +183,34 @@ export default function Alice() {
     };
   }, []);
   useEffect(() => {
-    if (loaded) localStorage.setItem("alice.chats", JSON.stringify(chats));
+    if (!loaded) return;
+    const timer = setTimeout(() => {
+      fetch("/api/conversations", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chats }),
+      })
+        .then((r) => {
+          if (!r.ok) setError("Conversation changes could not be saved.");
+        })
+        .catch(() => setError("Conversation changes could not be saved."));
+    }, 350);
+    return () => clearTimeout(timer);
   }, [chats, loaded]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     if (loaded) localStorage.setItem("alice.theme", theme);
   }, [theme, loaded]);
   useEffect(() => {
-    scroll.current?.scrollTo({
-      top: scroll.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [questions, busy]);
+    scroll.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [active, view]);
+  useEffect(() => {
+    if (view === "chat" && questions.length)
+      scroll.current?.scrollTo({
+        top: scroll.current.scrollHeight,
+        behavior: "smooth",
+      });
+  }, [questions]);
   useEffect(() => {
     function esc(e: KeyboardEvent) {
       if (e.key === "Escape") setToolsOpen(false);
@@ -189,6 +228,18 @@ export default function Alice() {
     }, 5000);
     return () => clearInterval(timer);
   }, [running]);
+  useEffect(() => {
+    if (!toolsOpen) return;
+    const close = (e: PointerEvent) => {
+      if (toolsRef.current && !toolsRef.current.contains(e.target as Node))
+        setToolsOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [toolsOpen]);
+  useEffect(() => {
+    if (user.preferences?.theme) setTheme(user.preferences.theme);
+  }, [user.preferences?.theme]);
   const updateChat = (id: string, patch: Partial<Chat>) =>
     setChats((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   const saveDraft = (c: Campaign) => {
@@ -214,7 +265,13 @@ export default function Alice() {
       return;
     }
     const c = draft ? { ...clone(draft), id: crypto.randomUUID() } : blank();
+    if (!draft && user.preferences) {
+      c.depth = user.preferences.depth;
+      c.tools = user.preferences.tools;
+      if (user.preferences.mode === "single") c.variants = [c.variants[0]];
+    }
     setCampaign(c);
+    setBriefInput(draft?.notes ?? "");
     setActive(c.id);
     setRun(null);
     setEvents([]);
@@ -232,6 +289,7 @@ export default function Alice() {
     setError("");
     setActive(chat.id);
     setCampaign(clone(chat.campaign));
+    setBriefInput("");
     setQuestions([]);
     setAnswers({});
     setRun(null);
@@ -405,13 +463,9 @@ export default function Alice() {
     }
   }
   async function send() {
-    if (!campaign) return;
-    if (!campaign.notes.trim()) {
+    if (!campaign || referenceBusy) return;
+    if (!briefInput.trim()) {
       setError("Add a brief before sending.");
-      return;
-    }
-    if (campaign.variants.some((v) => !v.headline.trim() && !v.copy.trim())) {
-      setError("Add a headline or copy for each variant.");
       return;
     }
     setError("");
@@ -420,14 +474,16 @@ export default function Alice() {
       ...campaign,
       brand:
         campaign.brand ||
-        campaign.notes.match(/Brand:\s*([^.,\n]+)/i)?.[1] ||
+        briefInput.match(/Brand:\s*([^.,\n]+)/i)?.[1] ||
         "New campaign",
       notes:
-        campaign.notes +
+        briefInput +
         attachments.map((a) => `\n\nAttachment ${a.name}:\n${a.text}`).join(""),
     };
     setCampaign(c);
     saveDraft(c);
+    setBriefInput("");
+    setAttachments([]);
     setChats((xs) =>
       xs.map((x) =>
         x.id === active
@@ -448,6 +504,7 @@ export default function Alice() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setCampaign(body.campaign);
+      updateChat(active, { campaign: body.campaign });
       if (body.ready) await start(body.campaign);
       else {
         setQuestions(body.questions);
@@ -466,6 +523,13 @@ export default function Alice() {
     const next: Record<string, string> = { ...answers, [q.id]: value };
     setAnswers(next);
     setFreeAnswer("");
+    updateChat(active, {
+      messages: [
+        ...(currentChat?.messages ?? []),
+        { role: "assistant", text: q.text },
+        { role: "user", text: value },
+      ],
+    });
     if (questions.some((q) => !next[q.id])) return;
     setBusy(true);
     try {
@@ -477,14 +541,42 @@ export default function Alice() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setCampaign(body.campaign);
-      await start(body.campaign);
+      updateChat(active, {
+        campaign: body.campaign,
+        title: body.campaign.brand || "New campaign",
+      });
+      if (body.ready) await start(body.campaign);
+      else {
+        setQuestions((xs) => [
+          ...xs,
+          ...body.questions.filter((q: any) => !xs.some((x) => x.id === q.id)),
+        ]);
+        setBusy(false);
+      }
     } catch (e) {
       setError(String(e));
       setBusy(false);
     }
   }
-  function replay() {
+  async function replay() {
     if (!run) return;
+    let recorded = run.events;
+    if (!recorded.length) {
+      try {
+        const response = await fetch(`/api/runs/${run.id}?recording=1`);
+        const full = await response.json();
+        if (!response.ok) throw new Error(full.error);
+        recorded = full.events;
+        setRun(full);
+      } catch (e) {
+        setError(String(e));
+        return;
+      }
+    }
+    if (!recorded.length) {
+      setError("No event recording is available for this run.");
+      return;
+    }
     setEvents([]);
     setView("run");
     setRunning(true);
@@ -492,13 +584,13 @@ export default function Alice() {
     setSkip(false);
     let previous = 0;
     let elapsed = 0;
-    run.events.forEach((e, i) => {
+    recorded.forEach((e, i) => {
       const delta = Math.max(0, e.time_ms - previous);
       previous = e.time_ms;
       elapsed += delta;
       const timer = setTimeout(() => {
         setEvents((xs) => [...xs, e]);
-        if (i === run.events.length - 1) {
+        if (i === recorded.length - 1) {
           setRunning(false);
           setView("dashboard");
         }
@@ -515,6 +607,48 @@ export default function Alice() {
     setView("chat");
     updateChat(active, { status: "idle" });
     setError(replaying ? "Replay closed." : "Run cancelled.");
+  }
+  async function visualReference(id: string, file?: File) {
+    if (!file) return;
+    const campaignId = campaign?.id;
+    if (file.size > 3_000_000) {
+      setError("Choose an image smaller than 3 MB.");
+      return;
+    }
+    setReferenceBusy(id);
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const r = await fetch("/api/reference", { method: "POST", body: form });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error);
+      setCampaign((previous) =>
+        previous && previous.id === campaignId
+          ? {
+              ...previous,
+              variants: previous.variants.map((v) =>
+                v.id === id
+                  ? {
+                      ...v,
+                      visual_description: body.description,
+                      attachment_ids: [
+                        ...v.attachment_ids.filter(
+                          (name) => name !== file.name,
+                        ),
+                        file.name,
+                      ],
+                    }
+                  : v,
+              ),
+            }
+          : previous,
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setReferenceBusy("");
+    }
   }
   async function files(list: FileList | null) {
     if (!list) return;
@@ -578,7 +712,10 @@ export default function Alice() {
               key={chat.id}
             >
               <button onClick={() => loadChat(chat)}>
-                <span className={`status ${chat.status}`} />
+                <span
+                  className={`chat-status-dot chat-status-${chat.status}`}
+                  aria-hidden="true"
+                />
                 <span>{chat.title}</span>
                 {chat.demo && <small>Demo</small>}
               </button>
@@ -605,10 +742,15 @@ export default function Alice() {
           <small>7 regions. Many perspectives.</small>
         </div>
         <div className="user">
-          <span className="avatar">D</span>
+          <span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span>
           <div>
-            <strong>Demo user</strong>
-            <small>Hackathon workspace</small>
+            <strong>{user.name}</strong>
+            <button className="text-button" onClick={onSettings}>
+              Account settings
+            </button>
+            <button className="text-button" onClick={onLogout}>
+              Log out
+            </button>
           </div>
           <button
             aria-label="Toggle color theme"
@@ -694,6 +836,12 @@ export default function Alice() {
           {view === "dashboard" && run?.result && (
             <Dashboard
               run={run}
+              onDraft={fresh}
+              onConversation={(messages) =>
+                updateChat(active, {
+                  messages: [{ role: "user", text: c.notes }, ...messages],
+                })
+              }
               onReplay={replay}
               onUpdate={setRun}
               onAccept={(f) => {
@@ -786,6 +934,7 @@ export default function Alice() {
                     </span>
                   </div>
                   <Map
+                    onAgentClick={setLiveSelected}
                     personas={audience?.personas}
                     sentiments={audience?.archetypes.map((a) => {
                       const e = reactionEvents.find(
@@ -803,7 +952,11 @@ export default function Alice() {
                           e.data.variant_id === spread?.data.variant_id,
                       )
                       .flatMap((e) => e.data.newly_exposed as number[])}
-                    edges={spread?.data.edges as any}
+                    edges={
+                      (spread?.data.edges ??
+                        (audience as any)?.connections ??
+                        []) as any
+                    }
                   />
                   <div className="legend">
                     <span className="good">■ Positive</span>
@@ -840,6 +993,57 @@ export default function Alice() {
                       </div>
                     )}
                   </section>
+                  {liveSelected !== null && audience && (
+                    <section className="panel live-inspector">
+                      <div className="panel-heading">
+                        <h3>Agent {liveSelected + 1}</h3>
+                        <button
+                          aria-label="Close agent inspector"
+                          onClick={() => setLiveSelected(null)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <p>
+                        {
+                          audience.archetypes[
+                            audience.personas.archetype_index[liveSelected]
+                          ]?.blurb
+                        }
+                      </p>
+                      {(() => {
+                        const e = reactionEvents.find(
+                          (e) =>
+                            e.data.archetype_id ===
+                            audience.archetypes[
+                              audience.personas.archetype_index[liveSelected]
+                            ]?.id,
+                        );
+                        const rs = e?.data.per_variant as
+                          Reaction[] | undefined;
+                        return rs ? (
+                          <>
+                            {rs.map((r) => (
+                              <div key={r.variant_id}>
+                                <h4>Variant {r.variant_id}</h4>
+                                <blockquote>{r.sample_comment}</blockquote>
+                                <p>{r.reason}</p>
+                                <small>
+                                  Attention {r.attention.toFixed(2)} · Sentiment{" "}
+                                  {r.sentiment.toFixed(2)} · Backlash{" "}
+                                  {r.backlash_risk.toFixed(2)}
+                                </small>
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <p className="muted">
+                            Awaiting this person’s model reaction.
+                          </p>
+                        );
+                      })()}
+                    </section>
+                  )}
                   <section className="panel telemetry">
                     <h3>Inside the simulation</h3>
                     <div>
@@ -858,7 +1062,7 @@ export default function Alice() {
                       </strong>
                     </div>
                     <div>
-                      <span>Archetypes</span>
+                      <span>Individual personalities</span>
                       <strong>{audience?.archetypes.length ?? "—"}</strong>
                     </div>
                     <div>
@@ -890,7 +1094,32 @@ export default function Alice() {
               )}
             </div>
           )}
-          {view === "chat" && (
+          {view === "chat" && run?.result && (
+            <div className="chat-content">
+              <div className="panel-heading">
+                <div>
+                  <h1>{run.campaign.brand}</h1>
+                  <p className="muted">
+                    Continue the conversation. Your dashboard remains a
+                    revisable artifact.
+                  </p>
+                </div>
+                <button onClick={() => setView("dashboard")}>
+                  Open dashboard artifact ↗
+                </button>
+              </div>
+              <ArtifactWorkspace
+                run={run}
+                onDraft={fresh}
+                onConversation={(messages) =>
+                  updateChat(active, {
+                    messages: [{ role: "user", text: c.notes }, ...messages],
+                  })
+                }
+              />
+            </div>
+          )}
+          {view === "chat" && !run?.result && (
             <div className="chat-content">
               <div className="welcome">
                 <div className="hero-logo">
@@ -907,27 +1136,6 @@ export default function Alice() {
                   direction.
                 </p>
               </div>
-              <div className="demo-grid">
-                {demoInfo.map(([id, title, brand, tags, icon]) => (
-                  <button
-                    key={id}
-                    className="demo-card"
-                    onClick={() => {
-                      setCampaign(clone(demos[id]));
-                      setQuestions([]);
-                      setAnswers({});
-                      setError("");
-                    }}
-                  >
-                    <div className="demo-icon">{icon}</div>
-                    <span className="eyebrow">{brand}</span>
-                    <h3>{title}</h3>
-                    <span className="demo-tags">
-                      {tags} <span>↗</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
               <div className="flow-strip">
                 {["Brief", "Clarify", "Simulate", "Decide"].map((s, i) => (
                   <span key={s}>
@@ -938,7 +1146,14 @@ export default function Alice() {
                 ))}
               </div>
               {currentChat?.messages.map((m, i) => (
-                <div className="user-message" key={i}>
+                <div
+                  className={
+                    m.role === "assistant"
+                      ? "assistant-message"
+                      : "user-message"
+                  }
+                  key={i}
+                >
                   <span>{m.text}</span>
                 </div>
               ))}
@@ -1038,12 +1253,13 @@ export default function Alice() {
                                     headline: "",
                                     copy: "",
                                     visual_description: "",
+                                    attachment_ids: [],
                                   },
                                 ],
                         })
                       }
                     >
-                      Compare campaigns
+                      Multiple campaigns
                     </button>
                   </div>
                   <label className="brand-field">
@@ -1057,6 +1273,11 @@ export default function Alice() {
                     />
                   </label>
                 </div>
+                <p className="mode-description">
+                  {c.variants.length > 1
+                    ? "Test 2–3 campaign directions against the same people, then compare their response."
+                    : "Explore how one campaign lands, where it loses interest, and what to improve."}
+                </p>
                 <div className="variant-tray">
                   {c.variants.map((v, i) => (
                     <div className="variant-card" key={v.id}>
@@ -1100,7 +1321,16 @@ export default function Alice() {
                           </button>
                         )}
                       </div>
+                      <label
+                        className="creative-label"
+                        htmlFor={`headline-${v.id}`}
+                      >
+                        Headline
+                        <small>The main line that catches attention.</small>
+                      </label>
                       <textarea
+                        id={`headline-${v.id}`}
+                        className="creative-field headline-field"
                         aria-label={`Variant ${v.id} headline`}
                         placeholder="Headline in Indonesian…"
                         value={v.headline}
@@ -1113,9 +1343,21 @@ export default function Alice() {
                           })
                         }
                       />
+                      <label
+                        className="creative-label"
+                        htmlFor={`message-${v.id}`}
+                      >
+                        Supporting message
+                        <small>
+                          The offer, product benefit, or next action under the
+                          headline.
+                        </small>
+                      </label>
                       <textarea
+                        id={`message-${v.id}`}
+                        className="creative-field"
                         aria-label={`Variant ${v.id} copy`}
-                        placeholder="Campaign copy…"
+                        placeholder="Supporting message: explain the offer, benefit or call to action…"
                         value={v.copy}
                         onChange={(e) =>
                           setCampaign({
@@ -1126,9 +1368,21 @@ export default function Alice() {
                           })
                         }
                       />
-                      <input
+                      <label
+                        className="creative-label"
+                        htmlFor={`visual-${v.id}`}
+                      >
+                        Visual reference or scene
+                        <small>
+                          Attach a reference image, or describe what the
+                          audience will see.
+                        </small>
+                      </label>
+                      <textarea
+                        id={`visual-${v.id}`}
+                        className="creative-field"
                         aria-label={`Variant ${v.id} visual idea`}
-                        placeholder="Visual idea (text description)"
+                        placeholder="What people will see: scene, people, product and on-screen text"
                         value={v.visual_description}
                         onChange={(e) =>
                           setCampaign({
@@ -1141,6 +1395,32 @@ export default function Alice() {
                           })
                         }
                       />
+                      <input
+                        hidden
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        ref={(el) => {
+                          visualInputs.current[v.id] = el;
+                        }}
+                        onChange={(e) =>
+                          visualReference(v.id, e.target.files?.[0])
+                        }
+                      />
+                      <button
+                        className="visual-reference-button"
+                        disabled={!!referenceBusy}
+                        onClick={() => visualInputs.current[v.id]?.click()}
+                      >
+                        {referenceBusy === v.id
+                          ? "Reading reference…"
+                          : "＋ Attach visual reference"}
+                      </button>
+                      {v.attachment_ids.length > 0 && (
+                        <small className="reference-file">
+                          {v.attachment_ids.join(", ")} · reference described
+                          for the simulation
+                        </small>
+                      )}
                     </div>
                   ))}
                   {c.variants.length === 2 && (
@@ -1158,6 +1438,7 @@ export default function Alice() {
                               headline: "",
                               copy: "",
                               visual_description: "",
+                              attachment_ids: [],
                             },
                           ],
                         })
@@ -1171,8 +1452,8 @@ export default function Alice() {
                   className="brief-input"
                   aria-label="Campaign brief"
                   placeholder="Tell Alice about your campaign. The audience, the goal, the moment…"
-                  value={c.notes}
-                  onChange={(e) => setCampaign({ ...c, notes: e.target.value })}
+                  value={briefInput}
+                  onChange={(e) => setBriefInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -1214,15 +1495,24 @@ export default function Alice() {
                       multiple
                       onChange={(e) => files(e.target.files)}
                     />
-                    <div className="tools-wrap">
-                      <button onClick={() => setToolsOpen(!toolsOpen)}>
+                    <div className="tools-wrap" ref={toolsRef}>
+                      <button
+                        aria-expanded={toolsOpen}
+                        aria-controls="campaign-tools"
+                        onClick={() => setToolsOpen(!toolsOpen)}
+                      >
                         ⚙ Tools{" "}
                         <span className="count">
                           {1 + Object.values(c.tools).filter(Boolean).length}
                         </span>
                       </button>
                       {toolsOpen && (
-                        <div className="tools-popover">
+                        <div
+                          id="campaign-tools"
+                          className="tools-popover"
+                          role="dialog"
+                          aria-label="Campaign tools"
+                        >
                           <h3>Give Alice the right tools.</h3>
                           <div>
                             <span>
@@ -1284,8 +1574,7 @@ export default function Alice() {
                     >
                       {Object.entries(tiers).map(([id, t]) => (
                         <option key={id} value={id}>
-                          {pretty(id)} · {t.personas.toLocaleString()} agents ·{" "}
-                          {t.archetypes} archetypes
+                          {pretty(id)} · {t.personas.toLocaleString()} agents
                         </option>
                       ))}
                     </select>
@@ -1298,13 +1587,15 @@ export default function Alice() {
                       )}
                       s{" "}
                       <small>
-                        ~${(calls * 0.004).toFixed(2)} planning estimate
+                        ~${(calls * 0.001).toFixed(2)} planning estimate
                       </small>
                     </span>
                     <button
                       aria-label="Send campaign"
                       className="send-button"
-                      disabled={busy || running || !!question}
+                      disabled={
+                        busy || running || !!question || !!referenceBusy
+                      }
                       onClick={send}
                     >
                       ↑
@@ -1331,12 +1622,13 @@ export default function Alice() {
 }
 function Logo() {
   return (
-    <img
+    <Image
+      sizes="104px"
       className="alice-logo"
       src="/alice-logo.png"
       alt="Alice"
-      width={34}
-      height={34}
+      width={104}
+      height={104}
     />
   );
 }

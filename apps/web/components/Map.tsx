@@ -1,12 +1,8 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import landData from "../public/land.json";
-import {
-  pretty,
-  regions,
-  type PersonaTable,
-  type Result,
-} from "@alice/contracts";
+import { type PersonaTable, type Result } from "@alice/contracts";
+import { dimensions, regions, pretty } from "../lib/display";
 const centers = [
   [106.8, -6.2],
   [111, -7.1],
@@ -16,7 +12,9 @@ const centers = [
   [119, -8.6],
   [135, -3.5],
 ];
-const colors = ["#fdf5e9", "#f2b84b", "#f48fb1"];
+const EMPTY_NUMBERS: number[] = [];
+const EMPTY_EDGES: { from: number; to: number; anger: boolean }[] = [];
+const EMPTY_SENTIMENTS: (number | undefined)[] = [];
 export default function Map({
   personas,
   result,
@@ -25,9 +23,10 @@ export default function Map({
   selected,
   onSelect,
   stage = "",
-  exposed = [],
-  edges = [],
-  sentiments = [],
+  exposed = EMPTY_NUMBERS,
+  edges = EMPTY_EDGES,
+  sentiments = EMPTY_SENTIMENTS,
+  onAgentClick,
 }: {
   personas?: PersonaTable;
   result?: Result;
@@ -39,8 +38,10 @@ export default function Map({
   exposed?: number[];
   edges?: { from: number; to: number; anger: boolean }[];
   sentiments?: (number | undefined)[];
+  onAgentClick?: (index: number) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const [size, setSize] = useState<[number, number]>([0, 0]);
   const land = landData;
   useEffect(() => {
     const el = canvas.current;
@@ -50,11 +51,18 @@ export default function Map({
     let width = 0,
       height = 0;
     const reached = new Set(exposed);
+    const started = performance.now();
     const observer = new ResizeObserver(() => {
       width = el.clientWidth;
       height = el.clientHeight;
-      el.width = width * devicePixelRatio;
-      el.height = height * devicePixelRatio;
+      const ratio = Math.min(devicePixelRatio, 2);
+      el.width = width * ratio;
+      el.height = height * ratio;
+      setSize((old) =>
+        old[0] === width && old[1] === height ? old : [width, height],
+      );
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(draw);
     });
     observer.observe(el);
     const draw = (time: number) => {
@@ -62,7 +70,14 @@ export default function Map({
         raf = requestAnimationFrame(draw);
         return;
       }
-      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+      ctx.setTransform(
+        Math.min(devicePixelRatio, 2),
+        0,
+        0,
+        Math.min(devicePixelRatio, 2),
+        0,
+        0,
+      );
       ctx.clearRect(0, 0, width, height);
       const scale = Math.min((width - 36) / 47, (height - 48) / 17.8);
       const project = (lon: number, lat: number) => [
@@ -100,7 +115,10 @@ export default function Map({
       }
       if (personas && !result) {
         const n = personas.count;
-        for (let i = 0; i < n; i++) {
+        const reveal = stage.includes("Building")
+          ? Math.min(n, Math.floor(((time - started) / 1600) * n))
+          : n;
+        for (let i = 0; i < reveal; i++) {
           const [x, y] = project(personas.longitude[i], personas.latitude[i]);
           const active = reached.size === 0 || reached.has(i);
           ctx.fillStyle = stage.includes("react")
@@ -129,7 +147,13 @@ export default function Map({
           ctx.fillRect(x, y, 2.2, 2.2);
         }
         ctx.globalAlpha = 1;
-        for (const edge of edges.slice(-100)) {
+        for (const edge of edges.slice(-180)) {
+          if (
+            stage.includes("react") &&
+            (sentiments[personas.archetype_index[edge.from]] === undefined ||
+              sentiments[personas.archetype_index[edge.to]] === undefined)
+          )
+            continue;
           const [x, y] = project(
             personas.longitude[edge.from],
             personas.latitude[edge.from],
@@ -162,32 +186,13 @@ export default function Map({
         ctx.fillStyle = glow;
         ctx.fillRect(0, 0, width, height);
       }
-      if (result) {
-        ctx.textAlign = "center";
-        centers.forEach(([lon, lat], i) => {
-          const [x, y] = project(lon, lat);
-          const m = pv?.by_dimension.region.find((g) => g.group === regions[i]);
-          const value = m
-            ? metric === "score"
-              ? m.score.toFixed(0)
-              : metric === "sentiment"
-                ? m.sentiment.toFixed(2)
-                : `${Math.round((m[metric as "reach"] ?? 0) * 100)}%`
-            : "—";
-          ctx.fillStyle = "#2e000b";
-          ctx.beginPath();
-          ctx.arc(x, y - 14, 19, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = selected === regions[i] ? "#ff7f76" : "#d9bdb6";
-          ctx.stroke();
-          ctx.font = "15px system-ui";
-          ctx.fillStyle = "#fdf5e9";
-          ctx.fillText(value, x, y - 9);
-          ctx.font = "11px system-ui";
-          ctx.fillText(pretty(regions[i]), x, y + 18);
-        });
-      }
-      raf = requestAnimationFrame(draw);
+      if (
+        !result &&
+        personas &&
+        stage.includes("Building") &&
+        !matchMedia("(prefers-reduced-motion: reduce)").matches
+      )
+        raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => {
@@ -212,7 +217,65 @@ export default function Map({
         ref={canvas}
         role="img"
         aria-label="Dot matrix map of Indonesia, with synthetic audience positions"
+        onClick={(e) => {
+          if (!personas || !onAgentClick) return;
+          const box = e.currentTarget.getBoundingClientRect();
+          const scale = Math.min((size[0] - 36) / 47, (size[1] - 48) / 17.8);
+          let closest = -1,
+            dist = 12;
+          for (let i = 0; i < personas.count; i++) {
+            const x =
+              (personas.longitude[i] - 94.6) * scale +
+              (size[0] - 47 * scale) / 2;
+            const y =
+              (6.6 - personas.latitude[i]) * scale +
+              (size[1] - 17.8 * scale) / 2;
+            const d = Math.hypot(
+              e.clientX - box.left - x,
+              e.clientY - box.top - y,
+            );
+            if (d < dist) {
+              dist = d;
+              closest = i;
+            }
+          }
+          if (closest >= 0) onAgentClick(closest);
+        }}
       />
+      {result && size[0] > 0 && (
+        <div className="map-labels">
+          {centers.map(([lon, lat], i) => {
+            const m = result.per_variant
+              .find((v) => v.variant_id === variant)
+              ?.by_dimension.region.find((g) => g.group === regions[i]);
+            const scale = Math.min((size[0] - 36) / 47, (size[1] - 48) / 17.8);
+            const x = (lon - 94.6) * scale + (size[0] - 47 * scale) / 2;
+            const y =
+              (6.6 - lat) * scale +
+              (size[1] - 17.8 * scale) / 2 +
+              (i === 0 ? -30 : i === 1 ? 16 : 0);
+            const value = !m
+              ? "—"
+              : metric === "score"
+                ? m.score.toFixed(1)
+                : metric === "sentiment"
+                  ? m.sentiment.toFixed(2)
+                  : `${((m[metric as "reach"] ?? 0) * 100).toFixed(1)}%`;
+            return (
+              <button
+                key={regions[i]}
+                className="map-value"
+                style={{ left: x, top: y }}
+                onClick={() => onSelect?.(regions[i])}
+                aria-label={`${pretty(regions[i])}: ${value} ${metric === "score" ? "impact out of 100" : metric}`}
+              >
+                <strong>{value}</strong>
+                <span>{pretty(regions[i])}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="map-coordinate">
         6° N <span>Indonesia · 7 audience regions</span>11° S
       </div>

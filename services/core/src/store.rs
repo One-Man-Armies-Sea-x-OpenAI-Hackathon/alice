@@ -30,6 +30,10 @@ impl Store {
                 .execute(&p)
                 .await
                 .expect("migration");
+            sqlx::raw_sql(include_str!("../../../db/migrations/002_accounts.sql"))
+                .execute(&p)
+                .await
+                .expect("account migration");
             Some(p)
         } else {
             tracing::warn!("Using local file store; set DATABASE_URL for Postgres");
@@ -98,7 +102,8 @@ impl Store {
 }
 fn table(s: &str) -> Result<&str, StatusCode> {
     match s {
-        "runs" | "results" | "llm_cache" | "recordings" => Ok(s),
+        "runs" | "results" | "llm_cache" | "recordings" | "users" | "sessions"
+        | "conversations" => Ok(s),
         _ => Err(StatusCode::NOT_FOUND),
     }
 }
@@ -153,11 +158,15 @@ async fn delete(
 }
 pub fn router(s: Arc<Store>) -> Router {
     Router::new()
-        .route("/v1/store/{table}/{id}", get(read).put(write))
+        .route(
+            "/v1/store/{table}/{id}",
+            get(read).put(write).post(create).delete(remove_document),
+        )
         .route(
             "/v1/store/runs/{id}",
             put(write_run).get(read_run).delete(delete),
         )
+        .route("/v1/account/{id}", axum::routing::delete(remove_account))
         .with_state(s)
 }
 async fn write_run(
@@ -175,4 +184,126 @@ async fn read_run(
 ) -> Result<Json<Value>, StatusCode> {
     valid_id(&id)?;
     Ok(Json(s.read("runs", &id).await?))
+}
+
+async fn create(
+    State(s): State<Arc<Store>>,
+    Path((t, id)): Path<(String, String)>,
+    Json(v): Json<Value>,
+) -> Result<Json<Value>, StatusCode> {
+    valid_id(&id)?;
+    table(&t)?;
+    if t != "users" || !v.is_object() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if let Some(pool) = &s.pool {
+        let result =
+            sqlx::query("INSERT INTO users(id,document) VALUES($1,$2) ON CONFLICT DO NOTHING")
+                .bind(&id)
+                .bind(v)
+                .execute(pool)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if result.rows_affected() == 0 {
+            return Err(StatusCode::CONFLICT);
+        }
+    } else {
+        use tokio::io::AsyncWriteExt;
+        let path = s.path(&t, &id);
+        tokio::fs::create_dir_all(path.parent().unwrap())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let mut file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .await
+            .map_err(|_| StatusCode::CONFLICT)?;
+        file.write_all(&serde_json::to_vec(&v).unwrap())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    Ok(Json(json!({"ok":true})))
+}
+async fn remove_document(
+    State(s): State<Arc<Store>>,
+    Path((t, id)): Path<(String, String)>,
+) -> Result<Json<Value>, StatusCode> {
+    valid_id(&id)?;
+    table(&t)?;
+    if t != "sessions" {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if let Some(pool) = &s.pool {
+        sqlx::query("DELETE FROM sessions WHERE id=$1")
+            .bind(&id)
+            .execute(pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    } else {
+        let _ = tokio::fs::remove_file(s.path(&t, &id)).await;
+    }
+    Ok(Json(json!({"ok":true})))
+}
+async fn remove_account(
+    State(s): State<Arc<Store>>,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    valid_id(&id)?;
+    if let Some(pool) = &s.pool {
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        for table in ["runs", "sessions", "llm_cache"] {
+            let q = format!("DELETE FROM {table} WHERE document->>'user_id'=$1");
+            sqlx::query(&q)
+                .bind(&id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        }
+        sqlx::query("DELETE FROM users WHERE id=$1")
+            .bind(&id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        tx.commit()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    } else {
+        for table in ["runs", "sessions", "llm_cache"] {
+            let mut entries = match tokio::fs::read_dir(s.root.join(table)).await {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            while let Some(entry) = entries
+                .next_entry()
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            {
+                let data = tokio::fs::read(entry.path()).await.unwrap_or_default();
+                if let Ok(doc) = serde_json::from_slice::<Value>(&data) {
+                    if doc["user_id"] == id {
+                        let name = entry
+                            .path()
+                            .file_stem()
+                            .unwrap()
+                            .to_string_lossy()
+                            .to_string();
+                        if table == "runs" {
+                            for related in ["results", "recordings"] {
+                                let _ = tokio::fs::remove_file(s.path(related, &name)).await;
+                            }
+                        }
+                        let _ = tokio::fs::remove_file(entry.path()).await;
+                    }
+                }
+            }
+        }
+        for table in ["users", "conversations"] {
+            let _ = tokio::fs::remove_file(s.path(table, &id)).await;
+        }
+    }
+    Ok(Json(json!({"ok":true})))
 }

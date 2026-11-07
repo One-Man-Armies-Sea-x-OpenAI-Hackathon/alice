@@ -1,15 +1,16 @@
 "use client";
 import { useState } from "react";
 import {
-  dimensions,
-  regions,
-  pretty,
   type Campaign,
   type Result,
   type Reaction,
   type Audience,
 } from "@alice/contracts";
+import { dimensions, regions, pretty } from "../lib/display";
 import Map from "./Map";
+import ArtifactWorkspace from "./ArtifactWorkspace";
+import dynamic from "next/dynamic";
+const AgentNetwork = dynamic(() => import("./AgentNetwork"));
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const score = (v: number) => v.toFixed(1);
 const vc = (s: string) => `var(--variant-${s.toLowerCase()})`;
@@ -18,6 +19,8 @@ export default function Dashboard({
   onReplay,
   onAccept,
   onUpdate,
+  onDraft,
+  onConversation,
 }: {
   run: {
     id: string;
@@ -32,6 +35,8 @@ export default function Dashboard({
   onReplay: () => void;
   onAccept: (f: Result["fixes"][number]) => void;
   onUpdate: (r: any) => void;
+  onDraft: (c: Campaign) => void;
+  onConversation?: (m: { role: string; text: string }[]) => void;
 }) {
   const [tab, setTab] = useState("Overview");
   const [variant, setVariant] = useState("A");
@@ -53,6 +58,9 @@ export default function Dashboard({
   const tabs = [
     "Overview",
     "Reaction map",
+    "Timeline",
+    "Evidence",
+    "Agent network",
     single ? "Segments" : "A/B ranking",
     ...(c.tools.risk ? ["Risk flags"] : []),
     ...(c.tools.risk && c.tools.rewrite ? ["Fixes"] : []),
@@ -78,6 +86,11 @@ export default function Dashboard({
           <div className="tags">
             <span>{r.personas_total.toLocaleString()} agents</span>
             <span>{pretty(c.depth)}</span>
+            <span>
+              {run.audience?.archetypes.every((a) => a.persona_count === 1)
+                ? "Individual-personality simulation"
+                : "Earlier grouped simulation — rerun for individual agents"}
+            </span>
             <span>Seed {c.seed}</span>
             {run.mock && <span className="warn">Mock data</span>}
             {run.replay && <span>Cached replay</span>}
@@ -107,6 +120,21 @@ export default function Dashboard({
           </button>
         ))}
       </nav>
+      {(tab === "Timeline" || tab === "Evidence") && (
+        <ArtifactWorkspace
+          run={run}
+          mode={
+            tab === "Timeline"
+              ? "timeline"
+              : tab === "Evidence"
+                ? "evidence"
+                : "chat"
+          }
+          onDraft={onDraft}
+          onConversation={onConversation}
+        />
+      )}
+      {tab === "Agent network" && <AgentNetwork run={run} />}
       {tab === "Overview" && (
         <>
           <div className="winner-banner">
@@ -761,6 +789,12 @@ export default function Dashboard({
           </div>
         </>
       )}
+      <ArtifactWorkspace
+        run={run}
+        mode="chat"
+        onDraft={onDraft}
+        onConversation={onConversation}
+      />
       <footer className="dashboard-footer">
         Alice simulates audiences. Treat results as directional, not a forecast.{" "}
         <button className="text-button" onClick={onReplay}>

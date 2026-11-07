@@ -1,3 +1,4 @@
+import { effectivenessFindings } from "./effectiveness";
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -50,6 +51,7 @@ export type Run = {
   replay: boolean;
   cancelled: boolean;
   started: number;
+  owner_id?: string;
 };
 const globalRuns = globalThis as unknown as { aliceRuns?: Map<string, Run> };
 const runs = (globalRuns.aliceRuns ??= new Map<string, Run>());
@@ -94,7 +96,10 @@ async function react(
     const r = await structured(
       "reaction",
       ReactionSchema,
-      prompt("archetype-reaction") + "\n" + prompt("fewshot-bahasa"),
+      "You are ONE individual synthetic person, not a demographic average. Use your unique seeded personality in the blurb. Do not infer personality from religion or ethnicity. Different people in the same segment may disagree.\n" +
+        prompt("archetype-reaction") +
+        "\n" +
+        prompt("fewshot-bahasa"),
       {
         campaign: {
           ...c,
@@ -140,16 +145,30 @@ async function analyze(
   archetypes: Archetype[],
   b: Budget,
 ) {
-  const comments = rs
-    .filter((x) => x.backlash_risk > 0.04)
-    .map((x) => ({
-      comment: x.sample_comment,
-      variant_id: x.variant_id,
-      category: x.backlash_category,
-      persona_tags: Object.values(
-        archetypes.find((a) => a.id === x.archetype_id)!.segment,
-      ),
-    }));
+  const selected = c.variants.flatMap((v) =>
+    rs
+      .filter((x) => x.variant_id === v.id)
+      .sort(
+        (a, b) =>
+          b.backlash_risk +
+          (1 - b.attention) * 0.5 +
+          Math.max(0, -b.sentiment) -
+          (a.backlash_risk +
+            (1 - a.attention) * 0.5 +
+            Math.max(0, -a.sentiment)),
+      )
+      .slice(0, 25),
+  );
+  const comments = selected.map((x) => ({
+    comment: x.sample_comment,
+    reason: x.reason,
+    attention: x.attention,
+    variant_id: x.variant_id,
+    category: x.backlash_category,
+    persona_tags: Object.values(
+      archetypes.find((a) => a.id === x.archetype_id)!.segment,
+    ),
+  }));
   const result = await structured(
     "risk_analyst",
     RiskListSchema,
@@ -163,7 +182,16 @@ async function analyze(
       Object.values(v.by_dimension).flatMap((xs) => xs.map((g) => g.group)),
     ),
   );
-  return result.flags
+  return [
+    ...result.flags,
+    ...effectivenessFindings(c, r, rs, archetypes).filter(
+      (f) =>
+        !result.flags.some(
+          (x) => x.variant_id === f.variant_id && x.rule_id === f.rule_id,
+        ),
+    ),
+  ]
+    .slice(0, 6)
     .map((f, i) => ({
       ...f,
       id: f.id || `flag-${i}`,
@@ -296,6 +324,7 @@ async function perform(run: Run) {
     await guardrail(c, b);
     await storePut("runs", run.id, {
       campaign: c,
+      user_id: run.owner_id,
       status: "running",
       mock: run.mock,
     });
@@ -308,33 +337,12 @@ async function perform(run: Run) {
     });
     stage(run, "Building the audience", 1);
     run.audience = await core<Audience>("/v1/audience", {
-      campaign: c,
+      campaign: { ...c, individual_agents: true },
       depth: c.depth,
       seed: c.seed,
     });
     const audience = run.audience;
     event(run, "audience", audience);
-    const blurbs = await structured(
-      "blurbs",
-      BlurbsSchema,
-      prompt("persona-blurb"),
-      audience.archetypes,
-      b,
-      {
-        role: "reaction",
-        mock: () => ({
-          blurbs: audience.archetypes.map((a) => ({
-            archetype_id: a.id,
-            label: a.label,
-            blurb: `An adult in ${a.segment.region}, using ${a.segment.platform} with a ${a.segment.language_style} register.`,
-          })),
-        }),
-      },
-    );
-    for (const p of blurbs.blurbs) {
-      const a = audience.archetypes.find((a) => a.id === p.archetype_id);
-      if (a) Object.assign(a, { label: p.label, blurb: p.blurb });
-    }
     stage(run, "Agents react", 2);
     const baselinePromise = structured(
       "baseline",
@@ -524,7 +532,12 @@ async function perform(run: Run) {
     result.translations = await translate(
       [
         ...c.variants.flatMap((v) => [v.headline, v.copy]),
-        ...run.reactions.map((r) => r.sample_comment),
+        ...c.variants.flatMap((v) =>
+          run.reactions
+            .filter((r) => r.variant_id === v.id)
+            .slice(0, 60)
+            .map((r) => r.sample_comment),
+        ),
         ...result.risk_flags.map((f) => f.evidence.comment),
         ...result.fixes.flatMap((f) => [
           f.original.headline,
@@ -564,17 +577,24 @@ async function perform(run: Run) {
         retryable: !run.cancelled,
       },
     });
-    await storePut("runs", run.id, {
-      campaign: c,
-      status: run.status,
-      error: run.error,
-      mock: run.mock,
-    }).catch(() => {});
+    if (!run.owner_id || (await storeGet("users", run.owner_id)))
+      await storePut("runs", run.id, {
+        campaign: c,
+        user_id: run.owner_id,
+        status: run.status,
+        error: run.error,
+        mock: run.mock,
+      }).catch(() => {});
   }
 }
 async function save(run: Run) {
+  if (run.owner_id && !(await storeGet("users", run.owner_id)))
+    throw new Error("Account removed");
+  const previous = await storeGet("runs", run.id);
   await storePut("runs", run.id, {
+    ...previous,
     campaign: run.campaign,
+    user_id: run.owner_id,
     status: run.status,
     mock: run.mock,
   });
@@ -613,9 +633,10 @@ export async function getRun(id: string): Promise<Run | null> {
     replay: false,
     cancelled: false,
     started: Date.now(),
+    owner_id: saved.user_id,
   };
 }
-export async function startRun(c: Campaign) {
+export async function startRun(c: Campaign, owner_id?: string) {
   if (["1", "true"].includes(process.env.DEMO_CACHE ?? "")) {
     const { demos } = await import("../../contracts/src/demos");
     for (const [name, demo] of Object.entries(demos)) {
@@ -628,13 +649,21 @@ export async function startRun(c: Campaign) {
           const id = randomUUID();
           const replay = {
             ...recorded,
+            owner_id,
             id,
             replay: true,
             cancelled: false,
             events: recorded.events.map((e) => ({ ...e, run_id: id })),
             result: { ...recorded.result!, run_id: id },
           };
+          await storePut("runs", id, {
+            campaign: c,
+            user_id: owner_id,
+            status: "done",
+            mock: replay.mock,
+          });
           runs.set(id, replay);
+          await save(replay);
           return replay;
         }
       }
@@ -643,7 +672,7 @@ export async function startRun(c: Campaign) {
       "No matching cached demo. Choose a recorded demo or disable DEMO_CACHE.",
     );
   }
-  if (estimate(c).calls > Number(process.env.MAX_CALLS_PER_RUN || 640))
+  if (estimate(c).calls > Number(process.env.MAX_CALLS_PER_RUN || 16000))
     throw new Error(
       "Estimated worst-case calls exceed MAX_CALLS_PER_RUN. Reduce depth or disable automatic rewrites.",
     );
@@ -659,7 +688,14 @@ export async function startRun(c: Campaign) {
     replay: false,
     cancelled: false,
     started: Date.now(),
+    owner_id,
   };
+  await storePut("runs", run.id, {
+    campaign: c,
+    user_id: owner_id,
+    status: "running",
+    mock: run.mock,
+  });
   runs.set(run.id, run);
   void perform(run);
   return run;
@@ -678,7 +714,11 @@ export async function refix(id: string, flagId: string) {
   const flag = r.result.risk_flags.find((f) => f.id === flagId);
   if (!flag) throw new Error("Unknown flag");
   const fresh = await core<Audience>("/v1/audience", {
-    campaign: r.campaign,
+    campaign: {
+      ...r.campaign,
+      individual_agents:
+        r.audience.archetypes.length === r.audience.personas.count,
+    },
     depth: r.campaign.depth,
     seed: r.campaign.seed,
   });
@@ -714,4 +754,12 @@ export async function exportRecording(id: string, name: string) {
     resolve(root(), `recordings/${name}.json`),
     JSON.stringify({ ...r, replay: true }),
   );
+}
+
+export function cancelOwnedRuns(userId: string) {
+  for (const r of runs.values())
+    if (r.owner_id === userId && r.status === "running") {
+      r.cancelled = true;
+      r.status = "cancelled";
+    }
 }

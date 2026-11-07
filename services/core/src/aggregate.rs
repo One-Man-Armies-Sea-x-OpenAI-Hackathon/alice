@@ -89,18 +89,35 @@ pub fn aggregate(a: &Audience, os: &[Outcome]) -> Value {
     json!({"per_variant":vs,"ranking":rankings,"overall":{"winner":winner,"margin":round(margin),"is_tie":margin<1.,"confidence":if os.len()==1{if order[0]["overall"]["backlash"].as_f64().unwrap()<0.08{"High"}else if order[0]["overall"]["backlash"].as_f64().unwrap()<0.18{"Medium"}else{"Low"}}else{"Low"},"regions_won":regions_won,"recommended":winner,"recommendation_note":"","robustness":{"noise_floor":1.,"audience_won":0,"audience_total":0,"constants_won":0,"constants_total":0,"checks_won":0,"checks_total":0}}})
 }
 // Recombine counts rather than averaging already-computed scores.
-fn resampled_score(a: &Audience, o: &Outcome, sample: &[usize]) -> f64 {
-    let ids: Vec<_> = sample
-        .iter()
-        .flat_map(|g| {
-            a.personas
-                .iter()
-                .enumerate()
-                .filter(move |(_, p)| p.archetype_index == *g)
-                .map(|(i, _)| i)
-        })
-        .collect();
-    metrics(o, &ids)["score"].as_f64().unwrap()
+fn profile_totals(a: &Audience, o: &Outcome) -> Vec<[f64; 6]> {
+    let mut totals = vec![[0.; 6]; a.archetypes.len()];
+    for (i, p) in a.personas.iter().enumerate() {
+        let t = &mut totals[p.archetype_index];
+        t[0] += 1.;
+        t[1] += o.exposed[i] as f64;
+        t[2] += o.engaged[i] as f64;
+        t[3] += o.objected[i] as f64;
+        t[4] += if o.exposed[i] == 1 {
+            o.sentiment[i]
+        } else {
+            0.
+        };
+    }
+    totals
+}
+fn resampled_score(totals: &[[f64; 6]], sample: &[usize]) -> f64 {
+    let mut t = [0.; 6];
+    for &i in sample {
+        for j in 0..6 {
+            t[j] += totals[i][j]
+        }
+    }
+    round(score(
+        t[1] / t[0].max(1.),
+        t[2] / t[0].max(1.),
+        t[4] / t[1].max(1.),
+        t[3] / t[1].max(1.),
+    ))
 }
 pub fn robustness(a: &Audience, os: &[Outcome], rs: &[Reaction], second: &[Reaction]) -> Value {
     let agg = aggregate(a, os);
@@ -117,6 +134,7 @@ pub fn robustness(a: &Audience, os: &[Outcome], rs: &[Reaction], second: &[React
         - metrics(&rerun[0], &all)["score"].as_f64().unwrap())
     .abs()
     .max(min_noise);
+    let totals: Vec<_> = os.iter().map(|o| profile_totals(a, o)).collect();
     let mut aw = 0;
     for check in 0..200 {
         let sample: Vec<_> = (0..a.archetypes.len())
@@ -124,7 +142,8 @@ pub fn robustness(a: &Audience, os: &[Outcome], rs: &[Reaction], second: &[React
             .collect();
         let scores: Vec<_> = os
             .iter()
-            .map(|o| (&o.variant_id, resampled_score(a, o, &sample)))
+            .enumerate()
+            .map(|(i, o)| (&o.variant_id, resampled_score(&totals[i], &sample)))
             .collect();
         if scores.iter().max_by(|a, b| a.1.total_cmp(&b.1)).unwrap().0 == win {
             aw += 1

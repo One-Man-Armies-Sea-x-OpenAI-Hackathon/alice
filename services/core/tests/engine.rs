@@ -164,3 +164,5 @@ fn single_campaign_high_backlash_is_low_confidence() {
     let os = simulate(&a, &rs, &Constants::default());
     assert_eq!(aggregate(&a, &os)["overall"]["confidence"], "Low");
 }
+#[test]
+fn individual_mode_has_one_unique_personality_per_person(){for depth in ["quick","standard"]{let a=build(depth,42,json!({"individual_agents":true}));assert_eq!(a.archetypes.len(),a.personas.len());for(i,p)in a.personas.iter().enumerate(){assert_eq!(p.archetype_index,i);assert_eq!(a.archetypes[i]["persona_count"],1);assert!(a.archetypes[i]["blurb"].as_str().unwrap().contains("skepticism"));}assert_eq!(a.wire(),build(depth,42,json!({"individual_agents":true})).wire());}}

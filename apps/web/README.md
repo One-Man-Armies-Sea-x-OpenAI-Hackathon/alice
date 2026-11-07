@@ -1,6 +1,6 @@
 # Alice Web
 
-Next.js App Router with a thin server BFF, SSE, browser-local chat history, and canvas/SVG visualizations. Run `npm run dev` from the repository root to load the existing workspace environment and start all services.
+Next.js App Router with a thin server BFF, SSE, account-scoped server chat history, and canvas/SVG visualizations. Run `npm run dev` from the repository root to load the existing workspace environment and start all services.
 
 The supplied Alice logo is kept unchanged at `public/alice-logo.png` and used for the sidebar, welcome screen, assistant avatar and browser icon. Dark burgundy is the default; the cream theme uses the approved data ramps. Only Quick and Standard are displayed.
 
@@ -8,4 +8,6 @@ The supplied Alice logo is kept unchanged at `public/alice-logo.png` and used fo
 
 Live events use minimum stage display times. Recorded replays retain their relative timing and are labeled. Skip and cancellation are available. Disconnected live streams fall back to result polling; opening a running saved conversation polls to completion.
 
-Browser checks: `node scripts/browser-check.mjs` and `node scripts/flow-check.mjs` from the repository root, with the stack running. These test both themes, tabs, mobile overflow, a full submission and offline replay.
+Browser checks against a separate MOCK=1 stack: `node scripts/revision-qa.mjs` and `node scripts/frontend-regressions.mjs` from the repository root, with the stack running. These test both themes, tabs, mobile overflow, a full submission and offline replay.
+
+The account shell loads first, and the workspace/map/dashboard load on demand. Account settings support password rotation and deletion. `ArtifactWorkspace` continues the conversation, persists charts and scenario settings, and provides sourced historical evidence. `AgentNetwork` exposes geographic model inputs/outputs and sampled transmission links. Submitted brief input is a separate draft buffer that clears on send.

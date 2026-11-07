@@ -147,5 +147,6 @@ pub fn router() -> Router {
         .route("/v1/aggregate", post(agg))
         .route("/v1/robustness", post(robust))
         .route("/v1/rerun", post(rerun))
+        .route("/v1/scenario", post(crate::scenario::endpoint))
         .with_state(Arc::new(Engine::default()))
 }

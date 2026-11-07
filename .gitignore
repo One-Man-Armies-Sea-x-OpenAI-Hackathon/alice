@@ -19,3 +19,5 @@ prompts/cut/
 .codex/
 .agents/
 .aws/
+
+.next-*/

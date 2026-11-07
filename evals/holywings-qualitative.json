@@ -1,0 +1,266 @@
+{
+  "date": "2026-11-07T04:32:05.083Z",
+  "model": "gpt-5.6-luna",
+  "sample_size": 20,
+  "seed": 42,
+  "model_calls": 20,
+  "cache_hits": 0,
+  "individual_judgments_identifying_religious_sensitivity": 18,
+  "interpretation": "A qualitative check of whether individual judgments notice the documented name/alcohol sensitivity. This is not a public backlash percentage, a blind held-out validation or causal evidence for business consequences.",
+  "sources": [
+    {
+      "date": "2022-06-22",
+      "url": "https://jakarta.nu.or.id/jakarta-raya/gp-ansor-dki-jakarta-minta-klarifikasi-holywings-atas-permainan-simbol-agama-kVzdN"
+    },
+    {
+      "date": "2022-06-24",
+      "url": "https://news.detik.com/berita/d-6145378/pernyataan-lengkap-holywings-soal-promo-minuman-untuk-muhammad-maria"
+    },
+    {
+      "date": "2022-06-27",
+      "url": "https://m.beritajakarta.id/siaran-pers/provinsi/read/3335-SP-HMS-06-2022"
+    }
+  ],
+  "reactions": [
+    {
+      "archetype_id": "arc-0",
+      "variant_id": "A",
+      "attention": 0.82,
+      "sentiment": -0.72,
+      "share_likelihood": 0.38,
+      "click_likelihood": 0.06,
+      "backlash_risk": 0.72,
+      "backlash_category": "sara_religion",
+      "reason": "Pasti berhenti karena nama Muhammad dipasang bareng promo alkohol. Buat gue ini gak sensitif dan bisa nyinggung umat Islam, walau targetnya dewasa.",
+      "sample_comment": "Nama Muhammad kok dipasang bareng alkohol? Gak sensitif banget sih."
+    },
+    {
+      "archetype_id": "arc-1",
+      "variant_id": "A",
+      "attention": 0.82,
+      "sentiment": -0.42,
+      "share_likelihood": 0.24,
+      "click_likelihood": 0.08,
+      "backlash_risk": 0.18,
+      "backlash_category": "sara_religion",
+      "reason": "Promonya langsung menarik perhatian, tapi mengaitkan nama Muhammad dengan alkohol terasa tidak sensitif. Sebagai orang Kristen, tetap kurang nyaman karena bisa memicu konflik antarumat.",
+      "sample_comment": "Promonya kreatif, tapi nama Muhammad jangan dipasangkan dengan alkohol begini. Kurang sensitif."
+    },
+    {
+      "archetype_id": "arc-2",
+      "variant_id": "A",
+      "attention": 0.92,
+      "sentiment": -0.9,
+      "share_likelihood": 0.28,
+      "click_likelihood": 0.02,
+      "backlash_risk": 0.93,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promo alkohol terasa sangat tidak pantas dan menyinggung kesucian agama. Saya mungkin membagikan untuk memperingatkan orang lain.",
+      "sample_comment": "Ini jelas tidak pantas. Nama Muhammad jangan dijadikan gimmick promo alkohol."
+    },
+    {
+      "archetype_id": "arc-4",
+      "variant_id": "A",
+      "attention": 0.72,
+      "sentiment": -0.78,
+      "share_likelihood": 0.18,
+      "click_likelihood": 0.04,
+      "backlash_risk": 0.82,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promosi alkohol terasa sangat tidak pantas bagi saya. Ini bukan sekadar promo, tetapi menyentuh kehormatan agama dan nama yang dimuliakan.",
+      "sample_comment": "Mohon ditinjau kembali, jangan kaitkan nama Muhammad dengan minuman beralkohol."
+    },
+    {
+      "archetype_id": "arc-5",
+      "variant_id": "A",
+      "attention": 0.72,
+      "sentiment": -0.86,
+      "share_likelihood": 0.28,
+      "click_likelihood": 0.04,
+      "backlash_risk": 0.88,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promosi minuman beralkohol. Bagi saya ini kurang pantas dan tidak menghormati sensitivitas umat Islam, meski religiusitas saya rendah.",
+      "sample_comment": "Kurang pantas membawa nama Muhammad untuk promo alkohol. Mohon ditinjau kembali."
+    },
+    {
+      "archetype_id": "arc-6",
+      "variant_id": "A",
+      "attention": 0.82,
+      "sentiment": -0.88,
+      "share_likelihood": 0.32,
+      "click_likelihood": 0.06,
+      "backlash_risk": 0.91,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promosi minuman beralkohol. Bagi saya ini tidak pantas dan sangat menyinggung kesucian agama.",
+      "sample_comment": "Kurang pantas, nama Muhammad jangan dipakai untuk promosi minuman beralkohol. Mohon segera dikoreksi."
+    },
+    {
+      "archetype_id": "arc-23",
+      "variant_id": "A",
+      "attention": 0.68,
+      "sentiment": -0.58,
+      "share_likelihood": 0.12,
+      "click_likelihood": 0.08,
+      "backlash_risk": 0.18,
+      "backlash_category": "sara_religion",
+      "reason": "Promonya jelas dan alkohol relevan dengan Bali, tapi membawa nama Muhammad dan Maria terasa sensitif serta kurang pantas untuk promo minuman.",
+      "sample_comment": "Promonya jelas, tapi nama agama jangan dijadikan bahan promo alkohol begini."
+    },
+    {
+      "archetype_id": "arc-27",
+      "variant_id": "A",
+      "attention": 0.84,
+      "sentiment": -0.72,
+      "share_likelihood": 0.34,
+      "click_likelihood": 0.08,
+      "backlash_risk": 0.88,
+      "backlash_category": "sara_religion",
+      "reason": "Langsung mencolok karena bawa nama Muhammad bareng promo alkohol. Buatku ini bukan kreatif, tapi gak sensitif dan berpotensi nyakitin umat Muslim.",
+      "sample_comment": "Nama Muhammad dipakai buat promo alkohol? Gak sensitif banget sih."
+    },
+    {
+      "archetype_id": "arc-29",
+      "variant_id": "A",
+      "attention": 0.62,
+      "sentiment": -0.28,
+      "share_likelihood": 0.08,
+      "click_likelihood": 0.06,
+      "backlash_risk": 0.03,
+      "backlash_category": "none",
+      "reason": "Nama promo langsung menarik perhatian, tetapi penawarannya terasa tidak relevan dan kredibilitas mereknya diragukan. Saya juga tidak nyaman dengan konteks alkoholnya.",
+      "sample_comment": "Promonya unik, tapi kok pakai nama begitu untuk alkohol? Kurang jelas dan kurang meyakinkan."
+    },
+    {
+      "archetype_id": "arc-47",
+      "variant_id": "A",
+      "attention": 0.82,
+      "sentiment": -0.38,
+      "share_likelihood": 0.18,
+      "click_likelihood": 0.08,
+      "backlash_risk": 0.05,
+      "backlash_category": "none",
+      "reason": "Nama dan promonya langsung bikin berhenti scroll, tapi mengaitkan nama agama dengan alkohol terasa sensitif. Saya mungkin bahas, bukan ikut promo.",
+      "sample_comment": "Promonya bikin ramai sih, tapi kok nama agama dibawa ke alkohol ya?"
+    },
+    {
+      "archetype_id": "arc-3",
+      "variant_id": "A",
+      "attention": 0.72,
+      "sentiment": -0.88,
+      "share_likelihood": 0.46,
+      "click_likelihood": 0.08,
+      "backlash_risk": 0.91,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promo alkohol terasa sangat menyinggung dan tidak pantas bagi Muslim taat. Saya mungkin membagikan untuk memperingatkan, bukan membeli.",
+      "sample_comment": "Ini kurang pantas sekali, nama Muhammad kok dipakai untuk promo alkohol?"
+    },
+    {
+      "archetype_id": "arc-7",
+      "variant_id": "A",
+      "attention": 0.88,
+      "sentiment": -0.92,
+      "share_likelihood": 0.18,
+      "click_likelihood": 0.04,
+      "backlash_risk": 0.92,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promo alkohol terasa sangat tidak pantas dan menyinggung. Sebagai Muslim, saya lebih mungkin memperingatkan keluarga daripada tertarik beli.",
+      "sample_comment": "Kok nama Muhammad dipakai buat promo alkohol? Ini nggak pantas banget, mohon ditarik."
+    },
+    {
+      "archetype_id": "arc-8",
+      "variant_id": "A",
+      "attention": 0.86,
+      "sentiment": -0.82,
+      "share_likelihood": 0.42,
+      "click_likelihood": 0.04,
+      "backlash_risk": 0.91,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dikaitkan langsung dengan promo minuman beralkohol. Bagi saya ini sangat tidak pantas dan berpotensi menyinggung umat Islam.",
+      "sample_comment": "Kurang pantas mengaitkan nama Muhammad dengan promosi alkohol. Mohon segera dikoreksi."
+    },
+    {
+      "archetype_id": "arc-9",
+      "variant_id": "A",
+      "attention": 0.86,
+      "sentiment": -0.78,
+      "share_likelihood": 0.18,
+      "click_likelihood": 0.04,
+      "backlash_risk": 0.9,
+      "backlash_category": "sara_religion",
+      "reason": "Saya langsung notice karena nama Muhammad dipasang bareng promo alkohol. Buat saya ini tidak pantas dan meresahkan, bukan soal gratisnya.",
+      "sample_comment": "Nama Muhammad kok dikaitkan dengan alkohol? Kurang pantas banget, mohon ditinjau."
+    },
+    {
+      "archetype_id": "arc-10",
+      "variant_id": "A",
+      "attention": 0.82,
+      "sentiment": -0.72,
+      "share_likelihood": 0.28,
+      "click_likelihood": 0.08,
+      "backlash_risk": 0.86,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dikaitkan langsung dengan promo alkohol, terasa sangat tidak sensitif. Sebagai orang Kristen pun saya melihat ini berisiko menyinggung banyak orang.",
+      "sample_comment": "Kurang pantas, nama agama jangan dijadikan gimmick promo alkohol. Mohon ditinjau kembali."
+    },
+    {
+      "archetype_id": "arc-11",
+      "variant_id": "A",
+      "attention": 0.84,
+      "sentiment": -0.72,
+      "share_likelihood": 0.18,
+      "click_likelihood": 0.06,
+      "backlash_risk": 0.78,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan langsung dengan promo alkohol terasa melecehkan simbol yang sensitif. Pasti berhenti lihat, tapi bukan buat beli.",
+      "sample_comment": "Nama Muhammad kok dipakai buat promo alkohol? Gak pantas banget."
+    },
+    {
+      "archetype_id": "arc-12",
+      "variant_id": "A",
+      "attention": 0.87,
+      "sentiment": -0.9,
+      "share_likelihood": 0.52,
+      "click_likelihood": 0.03,
+      "backlash_risk": 0.92,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promo alkohol terasa sangat tidak pantas bagi Muslim. Bisa bikin resah keluarga dan memicu teguran, meski produknya untuk dewasa.",
+      "sample_comment": "Kurang pantas sekali, nama Muhammad jangan dipakai untuk promo minuman beralkohol."
+    },
+    {
+      "archetype_id": "arc-13",
+      "variant_id": "A",
+      "attention": 0.86,
+      "sentiment": -0.88,
+      "share_likelihood": 0.42,
+      "click_likelihood": 0.05,
+      "backlash_risk": 0.94,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promo alkohol terasa sangat tidak pantas dan menyinggung umat Islam. Sebagai Muslim, saya khawatir reputasi mereknya.",
+      "sample_comment": "Mohon segera dikoreksi, ini tidak pantas membawa nama Muhammad dalam promo minuman beralkohol."
+    },
+    {
+      "archetype_id": "arc-14",
+      "variant_id": "A",
+      "attention": 0.88,
+      "sentiment": -0.78,
+      "share_likelihood": 0.18,
+      "click_likelihood": 0.04,
+      "backlash_risk": 0.62,
+      "backlash_category": "sara_religion",
+      "reason": "Nama Muhammad dipasangkan dengan promo alkohol, terasa sangat tidak pantas meski saya tidak terlalu religius. Pasti bikin orang mempertanyakan kehati-hatian brand.",
+      "sample_comment": "Kurang pantas ya, nama Muhammad jangan dipakai untuk promo alkohol."
+    },
+    {
+      "archetype_id": "arc-15",
+      "variant_id": "A",
+      "attention": 0.82,
+      "sentiment": -0.92,
+      "share_likelihood": 0.42,
+      "click_likelihood": 0.05,
+      "backlash_risk": 0.94,
+      "backlash_category": "sara_religion",
+      "reason": "Sebagai Muslim yang cukup taat, saya melihat nama Muhammad dipasangkan dengan promosi alkohol sebagai penghinaan terhadap nama suci dan agama. Pasti saya laporkan atau ingatkan orang lain.",
+      "sample_comment": "Kurang pantas sekali membawa nama Muhammad untuk promosi minuman beralkohol. Mohon segera dikoreksi."
+    }
+  ]
+}

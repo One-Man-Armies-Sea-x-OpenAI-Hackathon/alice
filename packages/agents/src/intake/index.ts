@@ -32,7 +32,7 @@ export async function clarify(
   answers: Record<string, string> = {},
 ) {
   const c = CampaignSchema.parse(raw);
-  const b = new Budget(8);
+  const b = new Budget(16);
   const decision = await guardrail(c, b);
   const questions: {
     id: string;
@@ -78,7 +78,7 @@ export async function clarify(
     "clarifier",
     ClarifierSchema,
     prompt("clarifier") +
-      " Never ask about a field already answered. At most three questions across the entire conversation. If questions have all been answered return ready.",
+      " Ask at most three focused questions per turn, and continue with another turn if decision-critical context remains missing. Consider intended audience, objective, event facts, timing, placement, budget and desired behavior. Do not invent historical evidence. Never repeat an answered question. Decide readiness yourself.",
     { campaign: c, answers },
     b,
     {
@@ -103,6 +103,13 @@ export async function clarify(
     },
   );
   let next: Campaign = { ...c, ...result.extracted };
+  if (Object.keys(answers).length)
+    next.notes =
+      c.notes.split("\nConfirmed context:")[0] +
+      "\nConfirmed context:\n" +
+      Object.entries(answers)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n");
   if (answers.channel) {
     const val = answers.channel.toLowerCase();
     next.channels = val.includes("multiple")
@@ -135,6 +142,6 @@ export async function clarify(
     ...result,
     campaign: CampaignSchema.parse(next),
     questions: result.questions.filter((q) => !answers[q.id]),
-    ready: result.ready || result.questions.every((q) => !!answers[q.id]),
+    ready: result.ready,
   };
 }
