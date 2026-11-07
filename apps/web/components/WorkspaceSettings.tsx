@@ -1,4 +1,5 @@
 "use client";
+import { readJson, requestTask } from "../lib/http";
 import { useEffect, useState } from "react";
 export default function WorkspaceSettings({
   user,
@@ -32,7 +33,7 @@ export default function WorkspaceSettings({
   });
   useEffect(() => {
     fetch("/api/health")
-      .then((r) => r.json())
+      .then(readJson)
       .then(setHealth)
       .catch(() => setError("Connection diagnostics are unavailable."));
     const close = (e: KeyboardEvent) => {
@@ -51,7 +52,7 @@ export default function WorkspaceSettings({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pref),
       });
-      const body = await r.json();
+      const body = await readJson(r);
       if (!r.ok) throw new Error(body.error);
       onUpdate(body.user);
       setSaved("Saved. Simulation defaults apply to new conversations.");
@@ -155,19 +156,19 @@ export default function WorkspaceSettings({
                   </select>
                 </label>
                 <label>
-                  Campaign mode
+                  Direction mode
                   <select
                     value={pref.mode}
                     onChange={(e) => setPref({ ...pref, mode: e.target.value })}
                   >
-                    <option value="single">Single campaign</option>
-                    <option value="multiple">Multiple campaigns</option>
+                    <option value="single">Single direction</option>
+                    <option value="multiple">Multiple directions</option>
                   </select>
                 </label>
                 <div className="settings-row">
                   <div>
                     <strong>Individual-personality simulation</strong>
-                    <small>One model reaction per person and campaign.</small>
+                    <small>One model reaction per person and direction.</small>
                   </div>
                   <span className="tag">Always on</span>
                 </div>

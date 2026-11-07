@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-For an optimized serving build, run `npm run build` and then `npm start`. `npm run dev` keeps hot reload enabled while editing.
+For an optimized serving build, run `npm run build` and then `npm start`. Production output uses `.next-production`, separate from development assets, so a build can run without clearing the live development cache. `npm run dev` keeps hot reload enabled while editing.
 
 Open http://127.0.0.1:3000 and create an account. This starts Postgres, applies the migrations, starts the Rust core on port 4000, and starts Next.js. The launcher reads `../.env` (the existing workspace keys), then an optional ignored checkout `.env`. Keys remain on the server. `OPENAI_API_KEY` accepts a single key or a comma/whitespace-separated ordered pool; `OPENAI_API_KEYS` also accepts a JSON array. Only key positions are exposed.
 
@@ -35,6 +35,7 @@ npm run build             # schemas, production web build, release core
 npm run smoke             # auth + artifact integration; requires a MOCK=1 stack
 node scripts/frontend-regressions.mjs
 node scripts/settings-reference-qa.mjs
+node scripts/background-campaign-qa.mjs
 npm run prime             # optional: substantial real model usage at individual scale
 ```
 
@@ -60,4 +61,4 @@ Browser regression scripts default to an isolated mock web server on port 3001. 
 
 Runtime prompts and product specs are retained. Planning packs, Codex task prompts, generated agent guidance, secrets and build output are ignored.
 
-The campaign mode is named Multiple campaigns. Supporting message means the offer, benefit or call to action under a headline; Visual reference or scene can be described directly or supplied as a PNG/JPEG/WebP under 3 MB. Images are read once into a description instead of sent again to every person. Settings store per-account appearance, name, default depth/mode and tool preferences, and show real provider/storage status and usage limits.
+One chat represents one campaign. Its creative mode is Single direction or Multiple directions. Supporting message means the offer, benefit or call to action under a headline; Visual reference or scene can be described directly or supplied as a PNG/JPEG/WebP under 3 MB. Images are read once into a description instead of sent again to every person. Settings store per-account appearance, name, default depth/mode and tool preferences, and show real provider/storage status and usage limits.

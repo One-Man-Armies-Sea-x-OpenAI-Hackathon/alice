@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "npm run generate -w @alice/contracts && npm run build -w @alice/web && cargo build --release --manifest-path services/core/Cargo.toml",
+    "build": "npm run generate -w @alice/contracts && ALICE_NEXT_DIST_DIR=.next-production npm run build -w @alice/web && cargo build --release --manifest-path services/core/Cargo.toml",
     "test": "tsx --test packages/agents/test/*.test.ts && cargo test --manifest-path services/core/Cargo.toml",
     "typecheck": "tsc --noEmit -p apps/web/tsconfig.json",
     "prime": "tsx scripts/prime.ts",

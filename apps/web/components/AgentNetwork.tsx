@@ -1,4 +1,5 @@
 "use client";
+import { readJson, requestTask } from "../lib/http";
 import { useEffect, useRef, useState } from "react";
 import type { Audience, Campaign, Result, Reaction } from "@alice/contracts";
 import land from "../public/land.json";
@@ -61,7 +62,7 @@ export default function AgentNetwork({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ strings: texts }),
     })
-      .then((r) => r.json())
+      .then(readJson)
       .then((items) => {
         if (active && Array.isArray(items))
           setExtraEnglish((prev) => ({

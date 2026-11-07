@@ -12,29 +12,62 @@ export async function GET(
   } catch (e) {
     return authError(e);
   }
-  if (!(await getRun(id))) return new Response("Not found", { status: 404 });
+  if (!(await getRun(id)))
+    return Response.json({ error: "Run not found" }, { status: 404 });
   const enc = new TextEncoder();
+  let closed = false,
+    reading = false;
   let timer: ReturnType<typeof setInterval>;
-  let seq = 0;
+  let seq = Math.max(
+    0,
+    Number(
+      req.headers.get("last-event-id") ||
+        new URL(req.url).searchParams.get("after"),
+    ) || 0,
+  );
+  function stop() {
+    closed = true;
+    clearInterval(timer);
+  }
   const stream = new ReadableStream({
     start(controller) {
-      timer = setInterval(async () => {
-        const r = await getRun(id);
-        if (!r) return;
-        for (const e of r.events.filter((e) => e.seq > seq)) {
-          controller.enqueue(
-            enc.encode(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`),
-          );
-          seq = e.seq;
+      const poll = async () => {
+        if (closed || reading) return;
+        reading = true;
+        try {
+          const run = await getRun(id);
+          if (closed) return;
+          if (!run) {
+            stop();
+            controller.close();
+            return;
+          }
+          for (const e of run.events.filter((e) => e.seq > seq)) {
+            controller.enqueue(
+              enc.encode(
+                `id: ${e.seq}\nevent: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`,
+              ),
+            );
+            seq = e.seq;
+          }
+          if (run.status !== "running") {
+            stop();
+            controller.close();
+          }
+        } catch {
+          if (!closed) {
+            stop();
+            controller.error(new Error("Progress connection interrupted"));
+          }
+        } finally {
+          reading = false;
         }
-        if (r.status !== "running") {
-          clearInterval(timer);
-          controller.close();
-        }
-      }, 200);
+      };
+      timer = setInterval(poll, 250);
+      void poll();
     },
     cancel() {
-      clearInterval(timer);
+      stop();
     },
   });
   return new Response(stream, {

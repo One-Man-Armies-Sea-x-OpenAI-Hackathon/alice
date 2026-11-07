@@ -1,4 +1,5 @@
 "use client";
+import { readJson, requestTask } from "../lib/http";
 import { useEffect, useRef, useState } from "react";
 import type { Campaign, Result } from "@alice/contracts";
 import type { Artifact, Scenario } from "../../../packages/agents/src/artifact";
@@ -40,7 +41,7 @@ export default function ArtifactWorkspace({
   useEffect(() => {
     if (mode !== "evidence") return;
     fetch("/api/evidence/holywings")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => (r.ok ? readJson(r) : null))
       .then(setHistoricalCheck)
       .catch(() => {});
   }, [mode]);
@@ -49,7 +50,7 @@ export default function ArtifactWorkspace({
     setReady(false);
     fetch(`/api/runs/${run.id}/discuss`)
       .then(async (r) => {
-        const body = await r.json();
+        const body = await readJson(r);
         if (!r.ok) throw new Error(body.error);
         return body;
       })
@@ -83,13 +84,11 @@ export default function ArtifactWorkspace({
       ],
     }));
     try {
-      const r = await fetch(`/api/runs/${run.id}/discuss`, {
+      const body = await requestTask(`/api/runs/${run.id}/discuss`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: question }),
       });
-      const body = await r.json();
-      if (!r.ok) throw new Error(body.error);
       setArtifact(body.artifact);
       setAssumptions(body.artifact.scenario);
       setText("");
@@ -116,7 +115,7 @@ export default function ArtifactWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(assumptions),
       });
-      const body = await r.json();
+      const body = await readJson(r);
       if (!r.ok) throw new Error(body.error);
       setScenario(body);
       setArtifact((a) => ({

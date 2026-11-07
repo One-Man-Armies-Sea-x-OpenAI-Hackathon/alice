@@ -25,7 +25,7 @@ p.on("pageerror", (e) => errors.push(e.message));
 await p.goto(base);
 await p.getByRole("heading", { name: "What are we testing today?" }).waitFor();
 await p
-  .getByRole("button", { name: "Multiple campaigns", exact: true })
+  .getByRole("button", { name: "Multiple directions", exact: true })
   .waitFor();
 await p.getByRole("button", { name: /^⚙ Tools/ }).click();
 await p.getByRole("dialog", { name: "Campaign tools" }).waitFor();
@@ -51,6 +51,9 @@ await p
       "base64",
     ),
   });
+await p
+  .getByRole("button", { name: "Confirm and read reference", exact: true })
+  .click();
 await p.getByLabel("Variant A visual idea").filter({ visible: true }).waitFor();
 await p.waitForFunction(() =>
   document.querySelector("#visual-A").value.includes("Mock visual reference"),
@@ -63,7 +66,7 @@ await settings.getByLabel("Appearance").selectOption("light");
 await settings.getByRole("button", { name: "Save preferences" }).click();
 await p.getByText(/Saved. Simulation defaults/).waitFor();
 await settings.getByRole("button", { name: "Simulation", exact: true }).click();
-await settings.getByLabel("Campaign mode").selectOption("single");
+await settings.getByLabel("Direction mode").selectOption("single");
 await settings.getByRole("button", { name: "Save preferences" }).click();
 await p.getByText(/Saved. Simulation defaults/).waitFor();
 await settings

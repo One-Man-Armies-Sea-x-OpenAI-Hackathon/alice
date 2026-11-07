@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { requireUser, checkOrigin, authError } from "../../../lib/auth";
-import { structured, Budget, withAccount } from "@alice/agents";
+import { structured, Budget, withAccount, createTask } from "@alice/agents";
 const schema = z.object({
   description: z.string().max(1200),
   detected_text: z.array(z.string()),
@@ -30,31 +30,40 @@ export async function POST(req: Request) {
             data.toString("ascii", 8, 12) === "WEBP";
     if (!valid) throw new Error("The image format could not be verified");
     const b = new Budget(3);
-    const result = await withAccount(user.id, () =>
-      structured(
-        "visual_reference",
-        schema,
-        "Describe only what is visibly present in the creative reference, in plain English. Include composition, objects, product placement, colors and visible text. Do not invent product claims, identify people or infer protected traits. State uncertainty when details cannot be read. This description will be passed to synthetic people as the visual context; it is not a claim the image was shown to each model.",
-        { filename: file.name },
-        b,
-        {
-          role: "reaction",
-          imageDataUrl: `data:${file.type};base64,${data.toString("base64")}`,
-          mock: () => ({
-            description:
-              "Mock visual reference received. Describe the visible scene and product placement before a live run.",
-            detected_text: [],
-            uncertainties: ["Image analysis is mocked in this workspace."],
-          }),
-        },
-      ),
-    );
-    return Response.json({
-      ...result,
-      mock: process.env.MOCK === "1" || process.env.MOCK === "true",
-      llm_calls: b.calls,
-      cache_hits: b.cache_hits,
-    });
+    // Image input remains Responses input_image + data URL, checked through the Docs MCP:
+    // https://developers.openai.com/api/docs/guides/images-vision
+    const work = async () => {
+      const result = await withAccount(user.id, () =>
+        structured(
+          "visual_reference",
+          schema,
+          "Describe only what is visibly present in the creative reference, in plain English. Include composition, objects, product placement, colors and visible text. Do not invent product claims, identify people or infer protected traits. State uncertainty when details cannot be read. This description will be passed to synthetic people as the visual context; it is not a claim the image was shown to each model.",
+          { filename: file.name },
+          b,
+          {
+            role: "reaction",
+            imageDataUrl: `data:${file.type};base64,${data.toString("base64")}`,
+            mock: () => ({
+              description:
+                "Mock visual reference received. Describe the visible scene and product placement before a live run.",
+              detected_text: [],
+              uncertainties: ["Image analysis is mocked in this workspace."],
+            }),
+          },
+        ),
+      );
+      return {
+        ...result,
+        mock: process.env.MOCK === "1" || process.env.MOCK === "true",
+        llm_calls: b.calls,
+        cache_hits: b.cache_hits,
+      };
+    };
+    if (req.headers.get("prefer")?.includes("respond-async"))
+      return Response.json(createTask(user.id, "visual_reference", work), {
+        status: 202,
+      });
+    return Response.json(await work());
   } catch (e) {
     return authError(e);
   }
