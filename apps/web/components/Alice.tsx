@@ -10,6 +10,8 @@ import {
   type Fix,
 } from "@alice/contracts";
 import { pretty, tiers } from "../lib/display";
+import { readJson, requestTask, pollTask } from "../lib/http";
+import CampaignDirections from "./CampaignDirections";
 import dynamic from "next/dynamic";
 const Map = dynamic(() => import("./Map"), { ssr: false });
 const Dashboard = dynamic(() => import("./Dashboard"), {
@@ -34,9 +36,14 @@ type Chat = {
   title: string;
   campaign: Campaign;
   runId?: string;
+  taskId?: string;
   demo?: string;
   status: string;
   messages: { role: string; text: string }[];
+  questions?: any[];
+  answers?: Record<string, string>;
+  draft?: string;
+  error?: string;
 };
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 function blank(): Campaign {
@@ -77,36 +84,6 @@ function blank(): Campaign {
     ],
   };
 }
-const demoInfo = [
-  [
-    "langkah-run",
-    "Independence, in every step.",
-    "Langkah Run",
-    "Compare · Cultural symbols",
-    "↗",
-  ],
-  [
-    "kopi-senja",
-    "Which coffee story connects?",
-    "Kopi Senja",
-    "Compare · Everyday culture",
-    "◒",
-  ],
-  [
-    "ciliwung",
-    "A banner that starts a conversation.",
-    "Ciliwung clean-up",
-    "Single · Activist campaign",
-    "≈",
-  ],
-  [
-    "tiket-ceria",
-    "A holiday for everyone.",
-    "Tiket Ceria",
-    "Compare · Religious sensitivity",
-    "✳",
-  ],
-];
 export default function Alice({
   user,
   onLogout,
@@ -143,21 +120,53 @@ export default function Alice({
   const stream = useRef<EventSource | null>(null);
   const replayTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const currentId = useRef("");
-  const latestRun = useRef<Run | null>(null);
+  const activeRef = useRef("");
+  const chatsRef = useRef<Chat[]>([]);
+  const viewerCleanup = useRef<() => void>(() => {});
+  const deletedChats = useRef(new Set<string>());
+  const pendingIntakes = useRef(new Set<string>());
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [referencesReading, setReferencesReading] = useState<
+    Record<string, boolean>
+  >({});
+  activeRef.current = active;
+  chatsRef.current = chats;
   const attach = useRef<HTMLInputElement>(null);
-  const visualInputs = useRef<Record<string, HTMLInputElement | null>>({});
-  const [referenceBusy, setReferenceBusy] = useState("");
   const toolsRef = useRef<HTMLDivElement>(null);
   const scroll = useRef<HTMLDivElement>(null);
+  const saveQueue = useRef(Promise.resolve());
+  const thread = useRef<HTMLDivElement>(null);
+  const followConversation = useRef(false);
   useEffect(() => {
     fetch("/api/conversations")
       .then(async (r) => {
         if (!r.ok) throw new Error("Could not load your conversations");
-        return r.json();
+        return readJson(r);
       })
       .then((body) => {
-        setChats(body.chats.filter((chat: Chat) => !chat.demo));
+        const restored: Chat[] = body.chats
+          .filter((chat: Chat) => !chat.demo)
+          .map((chat: Chat) =>
+            chat.status === "preparing" && !chat.taskId
+              ? {
+                  ...chat,
+                  status: "failed",
+                  error:
+                    "The brief request was interrupted. Send another message to continue.",
+                }
+              : chat,
+          );
+        setChats(restored);
         setLoaded(true);
+        for (const chat of restored)
+          if (chat.status === "preparing" && chat.taskId)
+            void intake(
+              chat.campaign,
+              chat.id,
+              chat.answers ?? {},
+              chat.questions ?? [],
+              chat.taskId,
+            );
       })
       .catch((e) => {
         setError(e.message);
@@ -170,30 +179,39 @@ export default function Alice({
       if (user.preferences.mode === "single") c.variants = [c.variants[0]];
     }
     setCampaign(c);
+    activeRef.current = c.id;
     setActive(c.id);
     const t = localStorage.getItem("alice.theme") || "dark";
     setTheme(t);
     fetch("/api/health")
-      .then((r) => r.json())
+      .then(readJson)
       .then(setHealth)
       .catch(() => {});
     return () => {
-      stream.current?.close();
+      viewerCleanup.current();
       replayTimers.current.forEach(clearTimeout);
     };
   }, []);
   useEffect(() => {
     if (!loaded) return;
     const timer = setTimeout(() => {
-      fetch("/api/conversations", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chats }),
-      })
-        .then((r) => {
-          if (!r.ok) setError("Conversation changes could not be saved.");
+      const payload = JSON.stringify({ chats });
+      saveQueue.current = saveQueue.current
+        .catch(() => {})
+        .then(async () => {
+          await readJson(
+            await fetch("/api/conversations", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: payload,
+            }),
+          );
         })
-        .catch(() => setError("Conversation changes could not be saved."));
+        .catch(() =>
+          setError(
+            "Conversation changes could not be saved. Please check your connection.",
+          ),
+        );
     }, 350);
     return () => clearTimeout(timer);
   }, [chats, loaded]);
@@ -212,8 +230,19 @@ export default function Alice({
       });
   }, [questions]);
   useEffect(() => {
+    if (!followConversation.current) return;
+    thread.current?.scrollTo({
+      top: thread.current.scrollHeight,
+      behavior: "smooth",
+    });
+    followConversation.current = false;
+  }, [chats, questions, busy]);
+  useEffect(() => {
     function esc(e: KeyboardEvent) {
-      if (e.key === "Escape") setToolsOpen(false);
+      if (e.key === "Escape") {
+        setToolsOpen(false);
+        setDirectionsOpen(false);
+      }
     }
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
@@ -222,7 +251,7 @@ export default function Alice({
     if (!running) return;
     const timer = setInterval(() => {
       fetch("/api/health")
-        .then((r) => r.json())
+        .then(readJson)
         .then(setHealth)
         .catch(() => {});
     }, 5000);
@@ -240,6 +269,41 @@ export default function Alice({
   useEffect(() => {
     if (user.preferences?.theme) setTheme(user.preferences.theme);
   }, [user.preferences?.theme]);
+  useEffect(() => {
+    if (!loaded) return;
+    let stopped = false;
+    async function checkBackground() {
+      const ids = chatsRef.current
+        .filter((x) => x.runId && x.status === "running")
+        .map((x) => x.runId!)
+        .slice(0, 50);
+      if (!ids.length) return;
+      try {
+        const body = await readJson(
+          await fetch(`/api/runs?ids=${encodeURIComponent(ids.join(","))}`),
+        );
+        if (stopped) return;
+        setChats((xs) => {
+          let changed = false;
+          const next = xs.map((x) => {
+            const job = body.runs.find((r: any) => r.id === x.runId);
+            if (!job || job.status === x.status) return x;
+            changed = true;
+            return { ...x, status: job.status, error: job.error };
+          });
+          return changed ? next : xs;
+        });
+      } catch {
+        /* Active viewers reconnect independently; keep background jobs intact. */
+      }
+    }
+    void checkBackground();
+    const timer = setInterval(checkBackground, 3000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [loaded]);
   const updateChat = (id: string, patch: Partial<Chat>) =>
     setChats((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   const saveDraft = (c: Campaign) => {
@@ -259,304 +323,421 @@ export default function Alice({
           ];
     });
   };
-  const fresh = (draft?: Campaign) => {
-    if (running) {
-      setError("Finish or cancel the active run before opening a new chat.");
+  function detachViewer() {
+    viewerCleanup.current();
+    replayTimers.current.forEach(clearTimeout);
+    replayTimers.current = [];
+    currentId.current = "";
+    setRunning(false);
+    setReplaying(false);
+    setLiveSelected(null);
+  }
+  function stashActive() {
+    if (
+      !campaign ||
+      (!campaign.brand &&
+        !briefInput.trim() &&
+        !chatsRef.current.some((x) => x.id === active))
+    )
       return;
-    }
+    const id = active;
+    setChats((xs) => {
+      const old = xs.find((x) => x.id === id);
+      const next = {
+        ...(old ?? {
+          id,
+          title: campaign.brand || "New campaign",
+          status: "idle",
+          messages: [],
+        }),
+        campaign,
+        draft: briefInput,
+        questions,
+        answers,
+      };
+      return old ? xs.map((x) => (x.id === id ? next : x)) : [next, ...xs];
+    });
+  }
+  const fresh = (draft?: Campaign) => {
+    stashActive();
+    detachViewer();
     const c = draft ? { ...clone(draft), id: crypto.randomUUID() } : blank();
     if (!draft && user.preferences) {
       c.depth = user.preferences.depth;
       c.tools = user.preferences.tools;
       if (user.preferences.mode === "single") c.variants = [c.variants[0]];
     }
+    activeRef.current = c.id;
     setCampaign(c);
     setBriefInput(draft?.notes ?? "");
     setActive(c.id);
     setRun(null);
     setEvents([]);
     setView("chat");
+    setBusy(false);
     setQuestions([]);
     setAnswers({});
     setError("");
     setAttachments([]);
+    setDirectionsOpen(false);
   };
-  const loadChat = async (chat: Chat) => {
-    if (running) {
-      setError("Finish or cancel the active run before switching chats.");
-      return;
+  function monitorRun(id: string, chatId: string, initial: Event[] = []) {
+    viewerCleanup.current();
+    currentId.current = id;
+    setRunning(true);
+    setView("run");
+    setEvents(initial);
+    let disposed = false,
+      finishing = false;
+    const source = new EventSource(
+      `/api/runs/${id}/stream?after=${initial.at(-1)?.seq ?? 0}`,
+    );
+    stream.current = source;
+    const seen = new Set(initial.map((e) => e.seq));
+    let buffer: Event[] = [];
+    const flush = setInterval(() => {
+      if (!buffer.length) return;
+      const next = buffer;
+      buffer = [];
+      if (activeRef.current === chatId && currentId.current === id)
+        setEvents((xs) => [...xs, ...next]);
+    }, 80);
+    async function check() {
+      if (disposed || finishing) return;
+      try {
+        const status = await readJson(await fetch(`/api/runs/${id}?summary=1`));
+        if (disposed || status.status === "running") return;
+        finishing = true;
+        const next = await readJson<Run>(await fetch(`/api/runs/${id}`));
+        updateChat(chatId, { status: next.status, error: next.error });
+        if (
+          disposed ||
+          activeRef.current !== chatId ||
+          currentId.current !== id
+        )
+          return;
+        viewerCleanup.current();
+        setRun(next);
+        setEvents((xs) => [...xs, ...buffer]);
+        setRunning(false);
+        setView(next.result ? "dashboard" : "chat");
+        if (!next.result)
+          setError(
+            next.error ||
+              "The simulation stopped. You can send the brief again.",
+          );
+      } catch (e) {
+        finishing = false;
+        if (!disposed && activeRef.current === chatId)
+          setError(
+            e instanceof Error
+              ? e.message
+              : "Could not reconnect. The run continues in the background.",
+          );
+      }
     }
-    setError("");
+    for (const name of [
+      "stage",
+      "brief",
+      "audience",
+      "reaction",
+      "spread",
+      "rollup",
+      "robustness",
+      "baseline",
+      "risk",
+      "fix",
+      "done",
+      "error",
+    ]) {
+      source.addEventListener(name, (message) => {
+        if (!("data" in message)) return;
+        try {
+          const e = JSON.parse((message as MessageEvent).data) as Event;
+          if (seen.has(e.seq)) return;
+          seen.add(e.seq);
+          buffer.push(e);
+          if (name === "done" || name === "error") void check();
+        } catch {
+          if (activeRef.current === chatId)
+            setError("A progress update was interrupted. Reconnecting…");
+        }
+      });
+    }
+    const poll = setInterval(check, 2500);
+    viewerCleanup.current = () => {
+      disposed = true;
+      source.close();
+      clearInterval(poll);
+      clearInterval(flush);
+    };
+    void check();
+  }
+  const loadChat = async (chat: Chat) => {
+    stashActive();
+    detachViewer();
+    activeRef.current = chat.id;
     setActive(chat.id);
     setCampaign(clone(chat.campaign));
-    setBriefInput("");
-    setQuestions([]);
-    setAnswers({});
+    setBriefInput(chat.draft ?? "");
+    setQuestions(chat.questions ?? []);
+    setAnswers(chat.answers ?? {});
     setRun(null);
     setEvents([]);
-    setBusy(true);
+    setView("chat");
+    setBusy(chat.status === "preparing");
+    setError(chat.error ?? "");
+    setAttachments([]);
+    setDirectionsOpen(false);
+    scroll.current?.scrollTo({ top: 0, behavior: "instant" });
+    if (!chat.runId) return;
     try {
-      if (chat.runId || chat.demo) {
-        const response = await fetch(
-          chat.runId ? `/api/runs/${chat.runId}` : `/api/demo/${chat.demo}`,
-        );
-        if (response.ok) {
-          const next = await response.json();
-          setRun(next);
-          setEvents(next.events ?? []);
-          if (next.status === "running") {
-            setView("run");
-            setRunning(true);
-            const poll = setInterval(async () => {
-              try {
-                const updated = await (
-                  await fetch(`/api/runs/${chat.runId}`)
-                ).json();
-                setEvents(updated.events ?? []);
-                if (updated.status !== "running") {
-                  clearInterval(poll);
-                  setRun(updated);
-                  setRunning(false);
-                  if (updated.status === "done") setView("dashboard");
-                  else {
-                    setView("chat");
-                    setError(updated.error || "Run interrupted");
-                  }
-                  updateChat(chat.id, { status: updated.status });
-                }
-              } catch {
-                clearInterval(poll);
-                setRunning(false);
-                setView("chat");
-                setError("Could not reconnect to this run.");
-              }
-            }, 1500);
-          } else if (next.result) {
-            setView("dashboard");
-          } else {
-            setView("chat");
-            setError(
-              next.error || "Run interrupted. Send the brief to try again.",
-            );
-          }
-        } else {
-          setView("chat");
-          setError("This demo is not cached yet. Send its brief to run it.");
-        }
-      } else setView("chat");
-    } catch {
-      setError("Could not open this chat. Check the local services.");
-    } finally {
+      const next = await readJson<Run>(
+        await fetch(
+          `/api/runs/${chat.runId}${chat.status === "running" ? "?recording=1" : ""}`,
+        ),
+      );
+      if (activeRef.current !== chat.id) return;
       setBusy(false);
+      setRun(next);
+      currentId.current = next.id;
+      updateChat(chat.id, { status: next.status, error: next.error });
+      if (next.status === "running")
+        monitorRun(next.id, chat.id, next.events ?? []);
+      else {
+        setView(next.result ? "dashboard" : "chat");
+        if (!next.result)
+          setError(
+            next.error ||
+              "This run was interrupted. Send the brief to try again.",
+          );
+      }
+    } catch (e) {
+      if (activeRef.current === chat.id) {
+        setBusy(false);
+        setError(
+          e instanceof Error ? e.message : "Could not open this conversation.",
+        );
+      }
     }
   };
-  async function start(c: Campaign) {
-    setQuestions([]);
-    setBusy(false);
-    setRunning(true);
-    setSkip(false);
-    setReplaying(false);
-    setEvents([]);
-    setView("run");
-    setError("");
+  async function start(c: Campaign, chatId = activeRef.current) {
+    if (deletedChats.current.has(chatId)) return;
+    updateChat(chatId, {
+      status: "running",
+      questions: [],
+      campaign: c,
+      error: undefined,
+      draft: "",
+    });
+    if (activeRef.current === chatId) {
+      setQuestions([]);
+      setBusy(false);
+      setRunning(true);
+      setSkip(false);
+      setReplaying(false);
+      setEvents([]);
+      setView("run");
+      setError("");
+      setDirectionsOpen(false);
+    }
     try {
-      const response = await fetch("/api/runs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(c),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      currentId.current = body.run_id;
-      updateChat(active, {
-        status: "running",
-        runId: body.run_id,
-        campaign: c,
-      });
-      let receivedTerminal = false;
-      const source = new EventSource(`/api/runs/${body.run_id}/stream`);
-      stream.current = source;
-      const finish = async () => {
-        source.close();
-        const response = await fetch(`/api/runs/${body.run_id}`);
-        const next = await response.json();
-        latestRun.current = next;
-        setRun(next);
-        setEvents(next.events ?? []);
-        setRunning(false);
-        if (next.status === "done") {
-          setView("dashboard");
-          updateChat(active, { status: "done" });
-        } else {
-          setError(next.error || "Run failed");
-          setView("chat");
-          updateChat(active, { status: "failed" });
-        }
-      };
-      let nextEventAt = Date.now();
-      let stageReadyAt = Date.now();
-      for (const name of [
-        "stage",
-        "brief",
-        "audience",
-        "reaction",
-        "spread",
-        "rollup",
-        "robustness",
-        "baseline",
-        "risk",
-        "fix",
-        "done",
-        "error",
-      ])
-        source.addEventListener(name, (message) => {
-          if (!("data" in message)) return;
-          const e = JSON.parse((message as MessageEvent).data);
-          if (name === "done" || name === "error") {
-            receivedTerminal = true;
-            source.close();
-          }
-          const now = Date.now();
-          nextEventAt = Math.max(nextEventAt, now);
-          if (name === "stage") {
-            nextEventAt = Math.max(nextEventAt, stageReadyAt);
-            stageReadyAt =
-              nextEventAt +
-              ([2300, 3000, 4200, 2500, 1900, 2700, 2000, 900][
-                Number(e.data.index)
-              ] ?? 300);
-          }
-          const timer = setTimeout(() => {
-            setEvents((prev) => [...prev, e]);
-            if (name === "done" || name === "error") void finish();
-          }, nextEventAt - now);
-          replayTimers.current.push(timer);
-          if (name === "reaction" || name === "spread") nextEventAt += 120;
-        });
-      source.onerror = () => {
-        if (receivedTerminal) return;
-        source.close();
-        const poll = setInterval(async () => {
-          try {
-            const response = await fetch(`/api/runs/${body.run_id}`);
-            const next = await response.json();
-            setEvents(next.events ?? []);
-            if (next.status !== "running") {
-              clearInterval(poll);
-              void finish();
-            }
-          } catch {
-            clearInterval(poll);
-            setError(
-              "Lost connection to the server. Reopen this chat when services return.",
-            );
-            setRunning(false);
-            setView("chat");
-          }
-        }, 1500);
-      };
+      const body = await readJson(
+        await fetch("/api/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(c),
+        }),
+      );
+      updateChat(chatId, { runId: body.run_id, status: "running" });
+      if (deletedChats.current.has(chatId)) {
+        await fetch(`/api/runs/${body.run_id}`, { method: "DELETE" });
+        return;
+      }
+      if (activeRef.current === chatId) monitorRun(body.run_id, chatId);
     } catch (e) {
-      setRunning(false);
-      setView("chat");
-      setError(String(e));
-      updateChat(active, { status: "failed" });
+      const error =
+        e instanceof Error ? e.message : "Could not start this run.";
+      updateChat(chatId, { status: "failed", error });
+      if (activeRef.current === chatId) {
+        setRunning(false);
+        setView("chat");
+        setError(error);
+      }
+    }
+  }
+  async function removeChat(chat: Chat) {
+    try {
+      if (chat.runId && chat.status === "running")
+        await readJson(
+          await fetch(`/api/runs/${chat.runId}`, { method: "DELETE" }),
+        );
+      deletedChats.current.add(chat.id);
+      if (activeRef.current === chat.id) {
+        detachViewer();
+        setCampaign(null);
+        fresh();
+      }
+      setChats((xs) => xs.filter((x) => x.id !== chat.id));
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not remove the conversation.",
+      );
+    }
+  }
+  function applyReference(
+    campaignId: string,
+    variantId: string,
+    description: string,
+    filename: string,
+  ) {
+    const change = (c: Campaign) => ({
+      ...c,
+      variants: c.variants.map((v) =>
+        v.id === variantId
+          ? {
+              ...v,
+              visual_description: description,
+              attachment_ids: [filename],
+            }
+          : v,
+      ),
+    });
+    setCampaign((c) => (c?.id === campaignId ? change(c) : c));
+    setChats((xs) =>
+      xs.map((x) =>
+        x.campaign.id === campaignId
+          ? { ...x, campaign: change(x.campaign) }
+          : x,
+      ),
+    );
+  }
+  async function intake(
+    c: Campaign,
+    chatId: string,
+    confirmed: Record<string, string>,
+    priorQuestions: any[] = [],
+    taskId?: string,
+  ) {
+    if (pendingIntakes.current.has(chatId)) return;
+    pendingIntakes.current.add(chatId);
+    updateChat(chatId, { status: "preparing", error: undefined });
+    try {
+      const body = taskId
+        ? await pollTask({ task_id: taskId })
+        : await requestTask(
+            "/api/clarify",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ campaign: c, answers: confirmed }),
+            },
+            (taskId) => updateChat(chatId, { taskId }),
+          );
+      if (deletedChats.current.has(chatId)) return;
+      const qs = [
+        ...priorQuestions,
+        ...body.questions.filter(
+          (q: any) => !priorQuestions.some((x) => x.id === q.id),
+        ),
+      ];
+      updateChat(chatId, {
+        taskId: undefined,
+        campaign: body.campaign,
+        title: body.campaign.brand || "New campaign",
+        questions: qs,
+        answers: confirmed,
+        status: body.ready ? "running" : "waiting",
+      });
+      if (activeRef.current === chatId) {
+        followConversation.current = true;
+        setCampaign(body.campaign);
+        setQuestions(qs);
+        setBusy(false);
+      }
+      if (body.ready) await start(body.campaign, chatId);
+    } catch (e) {
+      const error =
+        e instanceof Error ? e.message : "Could not read the brief.";
+      updateChat(chatId, { status: "failed", error });
+      if (activeRef.current === chatId) {
+        setError(error);
+        setBusy(false);
+      }
+    } finally {
+      pendingIntakes.current.delete(chatId);
     }
   }
   async function send() {
-    if (!campaign || referenceBusy) return;
+    if (
+      !campaign ||
+      busy ||
+      running ||
+      campaign.variants.some((v) => referencesReading[`${campaign.id}:${v.id}`])
+    )
+      return;
     if (!briefInput.trim()) {
       setError("Add a brief before sending.");
       return;
     }
-    setError("");
-    setBusy(true);
+    const chatId = active;
+    followConversation.current = true;
+    const text =
+      briefInput +
+      attachments.map((a) => `\n\nAttachment ${a.name}:\n${a.text}`).join("");
     const c = {
       ...campaign,
       brand:
         campaign.brand ||
         briefInput.match(/Brand:\s*([^.,\n]+)/i)?.[1] ||
         "New campaign",
-      notes:
-        briefInput +
-        attachments.map((a) => `\n\nAttachment ${a.name}:\n${a.text}`).join(""),
+      notes: campaign.notes ? campaign.notes + "\n\n" + text : text,
     };
     setCampaign(c);
-    saveDraft(c);
     setBriefInput("");
     setAttachments([]);
+    setError("");
+    setBusy(true);
+    setChats((xs) => {
+      const old = xs.find((x) => x.id === chatId);
+      const next = {
+        ...(old ?? { id: chatId, status: "preparing", messages: [] }),
+        title: c.brand,
+        campaign: c,
+        status: "preparing",
+        draft: "",
+        messages: [...(old?.messages ?? []), { role: "user", text }],
+      };
+      return old ? xs.map((x) => (x.id === chatId ? next : x)) : [next, ...xs];
+    });
+    await intake(c, chatId, answers);
+  }
+  async function answer(value: string) {
+    if (!value.trim() || !campaign || busy) return;
+    const q = questions.find((q) => !answers[q.id]);
+    if (!q) return;
+    const next: Record<string, string> = { ...answers, [q.id]: value };
+    followConversation.current = true;
+    setAnswers(next);
+    setFreeAnswer("");
     setChats((xs) =>
       xs.map((x) =>
         x.id === active
           ? {
               ...x,
-              title: c.brand,
-              messages: [...x.messages, { role: "user", text: c.notes }],
+              answers: next,
+              messages: [
+                ...x.messages,
+                { role: "assistant", text: q.text },
+                { role: "user", text: value },
+              ],
             }
           : x,
       ),
     );
-    try {
-      const response = await fetch("/api/clarify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaign: c, answers }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      setCampaign(body.campaign);
-      updateChat(active, { campaign: body.campaign });
-      if (body.ready) await start(body.campaign);
-      else {
-        setQuestions(body.questions);
-        updateChat(active, { status: "waiting", campaign: body.campaign });
-        setBusy(false);
-      }
-    } catch (e) {
-      setError(String(e));
-      setBusy(false);
-    }
-  }
-  async function answer(value: string) {
-    if (!value.trim() || !campaign) return;
-    const q = questions.find((q) => !answers[q.id]);
-    if (!q) return;
-    const next: Record<string, string> = { ...answers, [q.id]: value };
-    setAnswers(next);
-    setFreeAnswer("");
-    updateChat(active, {
-      messages: [
-        ...(currentChat?.messages ?? []),
-        { role: "assistant", text: q.text },
-        { role: "user", text: value },
-      ],
-    });
     if (questions.some((q) => !next[q.id])) return;
     setBusy(true);
-    try {
-      const response = await fetch("/api/clarify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaign, answers: next }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      setCampaign(body.campaign);
-      updateChat(active, {
-        campaign: body.campaign,
-        title: body.campaign.brand || "New campaign",
-      });
-      if (body.ready) await start(body.campaign);
-      else {
-        setQuestions((xs) => [
-          ...xs,
-          ...body.questions.filter((q: any) => !xs.some((x) => x.id === q.id)),
-        ]);
-        setBusy(false);
-      }
-    } catch (e) {
-      setError(String(e));
-      setBusy(false);
-    }
+    await intake(campaign, active, next, questions);
   }
   async function replay() {
     if (!run) return;
@@ -564,7 +745,7 @@ export default function Alice({
     if (!recorded.length) {
       try {
         const response = await fetch(`/api/runs/${run.id}?recording=1`);
-        const full = await response.json();
+        const full = await readJson(response);
         if (!response.ok) throw new Error(full.error);
         recorded = full.events;
         setRun(full);
@@ -599,55 +780,22 @@ export default function Alice({
     });
   }
   async function cancel() {
-    replayTimers.current.forEach(clearTimeout);
-    stream.current?.close();
-    if (!replaying && currentId.current)
-      await fetch(`/api/runs/${currentId.current}`, { method: "DELETE" });
-    setRunning(false);
-    setView("chat");
-    updateChat(active, { status: "idle" });
-    setError(replaying ? "Replay closed." : "Run cancelled.");
-  }
-  async function visualReference(id: string, file?: File) {
-    if (!file) return;
-    const campaignId = campaign?.id;
-    if (file.size > 3_000_000) {
-      setError("Choose an image smaller than 3 MB.");
-      return;
-    }
-    setReferenceBusy(id);
-    setError("");
     try {
-      const form = new FormData();
-      form.append("image", file);
-      const r = await fetch("/api/reference", { method: "POST", body: form });
-      const body = await r.json();
-      if (!r.ok) throw new Error(body.error);
-      setCampaign((previous) =>
-        previous && previous.id === campaignId
-          ? {
-              ...previous,
-              variants: previous.variants.map((v) =>
-                v.id === id
-                  ? {
-                      ...v,
-                      visual_description: body.description,
-                      attachment_ids: [
-                        ...v.attachment_ids.filter(
-                          (name) => name !== file.name,
-                        ),
-                        file.name,
-                      ],
-                    }
-                  : v,
-              ),
-            }
-          : previous,
-      );
+      if (!replaying && currentId.current)
+        await readJson(
+          await fetch(`/api/runs/${currentId.current}`, { method: "DELETE" }),
+        );
+      const wasReplay = replaying;
+      detachViewer();
+      setView("chat");
+      if (!wasReplay) updateChat(active, { status: "cancelled" });
+      setError(wasReplay ? "Replay closed." : "Run cancelled.");
     } catch (e) {
-      setError(String(e));
-    } finally {
-      setReferenceBusy("");
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Cancellation failed. The run may still be working.",
+      );
     }
   }
   async function files(list: FileList | null) {
@@ -711,21 +859,38 @@ export default function Alice({
               className={`chat-row ${active === chat.id ? "active" : ""}`}
               key={chat.id}
             >
-              <button onClick={() => loadChat(chat)}>
+              <button aria-label={chat.title} onClick={() => loadChat(chat)}>
                 <span
                   className={`chat-status-dot chat-status-${chat.status}`}
                   aria-hidden="true"
                 />
                 <span>{chat.title}</span>
-                {chat.demo && <small>Demo</small>}
+                {[
+                  "running",
+                  "preparing",
+                  "done",
+                  "failed",
+                  "interrupted",
+                ].includes(chat.status) && (
+                  <small className="chat-job-label">
+                    {
+                      (
+                        {
+                          running: "Running",
+                          preparing: "Reading",
+                          done: "Ready",
+                          failed: "Failed",
+                          interrupted: "Interrupted",
+                        } as Record<string, string>
+                      )[chat.status]
+                    }
+                  </small>
+                )}
               </button>
               <button
                 className="delete-chat"
                 aria-label={`Delete ${chat.title}`}
-                onClick={() => {
-                  setChats((xs) => xs.filter((x) => x.id !== chat.id));
-                  if (active === chat.id) fresh();
-                }}
+                onClick={() => removeChat(chat)}
               >
                 ×
               </button>
@@ -786,7 +951,16 @@ export default function Alice({
             <span className="muted">Campaign lab</span>
           </div>
           <div className="actions">
-            {run && (
+            {view === "chat" && !run?.result && (
+              <button
+                className="directions-toggle"
+                aria-expanded={directionsOpen}
+                onClick={() => setDirectionsOpen(!directionsOpen)}
+              >
+                Directions
+              </button>
+            )}
+            {run?.result && (
               <div className="segmented">
                 <button
                   className={view === "chat" ? "active" : ""}
@@ -829,286 +1003,15 @@ export default function Alice({
             </button>
           </div>
         )}
-        <main
-          ref={scroll}
-          className={view === "chat" ? "chat-main" : "content-main"}
+        <div
+          className={`workspace-body ${view === "chat" && !run?.result ? "with-directions" : ""}`}
         >
-          {view === "dashboard" && run?.result && (
-            <Dashboard
-              run={run}
-              onDraft={fresh}
-              onConversation={(messages) =>
-                updateChat(active, {
-                  messages: [{ role: "user", text: c.notes }, ...messages],
-                })
-              }
-              onReplay={replay}
-              onUpdate={setRun}
-              onAccept={(f) => {
-                const draft = clone(run.campaign);
-                draft.variants = draft.variants.map((v) =>
-                  v.id === f.variant_id
-                    ? {
-                        ...v,
-                        headline: f.rewrite.headline,
-                        copy: f.rewrite.copy,
-                        visual_description: f.rewrite.visual,
-                      }
-                    : v,
-                );
-                fresh(draft);
-              }}
-            />
-          )}
-          {view === "run" && (
-            <div className="run-view enter">
-              <div className="panel-heading">
-                <div>
-                  <span className="eyebrow">
-                    {replaying
-                      ? "Cached replay"
-                      : "A synthetic audience, a new perspective"}
-                  </span>
-                  <h1>
-                    {replaying ? "Replaying" : "Simulating"} {c.brand}
-                  </h1>
-                  <p>
-                    {tiers[c.depth].personas.toLocaleString()} agents ·{" "}
-                    {c.variants.length} variants · {pretty(c.depth)} · Seed{" "}
-                    {c.seed}
-                    {health?.mock ? " · Mock data" : ""}
-                  </p>
-                </div>
-                <div className="actions">
-                  <button
-                    onClick={() => {
-                      if (replaying) {
-                        replayTimers.current.forEach(clearTimeout);
-                        setRunning(false);
-                        setView("dashboard");
-                      } else if (run?.status === "done") {
-                        setView("dashboard");
-                      } else {
-                        setSkip(true);
-                      }
-                    }}
-                  >
-                    Skip to dashboard
-                  </button>
-                  <button onClick={cancel}>
-                    {replaying ? "Close" : "Cancel"}
-                  </button>
-                </div>
-              </div>
-              <div className="stage-stepper">
-                {[
-                  "Brief",
-                  "Audience",
-                  "Reactions",
-                  "Spread",
-                  "Results",
-                  ...(c.tools.risk ? ["Risk scan"] : []),
-                  ...(c.tools.risk && c.tools.rewrite ? ["Fixes"] : []),
-                ].map((s, i) => (
-                  <div
-                    key={s}
-                    className={
-                      Number(lastStage?.data.index ?? 0) >= i ? "active" : ""
-                    }
-                  >
-                    <span>
-                      {Number(lastStage?.data.index ?? 0) > i ? "✓" : i + 1}
-                    </span>
-                    {s}
-                  </div>
-                ))}
-              </div>
-              <div className="run-grid">
-                <section className="panel run-map">
-                  <div className="panel-heading">
-                    <h3>
-                      <span className="pulse-dot" /> {stageName}
-                    </h3>
-                    <span className="tag">
-                      {replaying ? "Replay" : "Same audience · every variant"}
-                    </span>
-                  </div>
-                  <Map
-                    onAgentClick={setLiveSelected}
-                    personas={audience?.personas}
-                    sentiments={audience?.archetypes.map((a) => {
-                      const e = reactionEvents.find(
-                        (e) => e.data.archetype_id === a.id,
-                      );
-                      return (
-                        e?.data.per_variant as Reaction[] | undefined
-                      )?.[0]?.sentiment;
-                    })}
-                    stage={stageName}
-                    exposed={events
-                      .filter(
-                        (e) =>
-                          e.type === "spread" &&
-                          e.data.variant_id === spread?.data.variant_id,
-                      )
-                      .flatMap((e) => e.data.newly_exposed as number[])}
-                    edges={
-                      (spread?.data.edges ??
-                        (audience as any)?.connections ??
-                        []) as any
-                    }
-                  />
-                  <div className="legend">
-                    <span className="good">■ Positive</span>
-                    <span className="warn">■ Neutral</span>
-                    <span className="bad">■ Negative / objection</span>
-                    <span>□ Not reached</span>
-                  </div>
-                </section>
-                <div>
-                  <section className="panel live-feed">
-                    <div className="panel-heading">
-                      <h3>From the audience</h3>
-                      <span className="tag">Synthetic voices</span>
-                    </div>
-                    {reactionEvents.length ? (
-                      reactionEvents
-                        .slice(-5)
-                        .reverse()
-                        .map((e) => (
-                          <article className="enter" key={e.seq}>
-                            <div className="eyebrow">
-                              {String(e.data.label)}
-                            </div>
-                            <p>“{String(e.data.comment)}”</p>
-                            <small>
-                              {String(e.data.count)} agents represented
-                            </small>
-                          </article>
-                        ))
-                    ) : (
-                      <div className="waiting">
-                        <span className="typing">● ● ●</span>
-                        <p>Alice is preparing the audience.</p>
-                      </div>
-                    )}
-                  </section>
-                  {liveSelected !== null && audience && (
-                    <section className="panel live-inspector">
-                      <div className="panel-heading">
-                        <h3>Agent {liveSelected + 1}</h3>
-                        <button
-                          aria-label="Close agent inspector"
-                          onClick={() => setLiveSelected(null)}
-                        >
-                          ×
-                        </button>
-                      </div>
-                      <p>
-                        {
-                          audience.archetypes[
-                            audience.personas.archetype_index[liveSelected]
-                          ]?.blurb
-                        }
-                      </p>
-                      {(() => {
-                        const e = reactionEvents.find(
-                          (e) =>
-                            e.data.archetype_id ===
-                            audience.archetypes[
-                              audience.personas.archetype_index[liveSelected]
-                            ]?.id,
-                        );
-                        const rs = e?.data.per_variant as
-                          Reaction[] | undefined;
-                        return rs ? (
-                          <>
-                            {rs.map((r) => (
-                              <div key={r.variant_id}>
-                                <h4>Variant {r.variant_id}</h4>
-                                <blockquote>{r.sample_comment}</blockquote>
-                                <p>{r.reason}</p>
-                                <small>
-                                  Attention {r.attention.toFixed(2)} · Sentiment{" "}
-                                  {r.sentiment.toFixed(2)} · Backlash{" "}
-                                  {r.backlash_risk.toFixed(2)}
-                                </small>
-                              </div>
-                            ))}
-                          </>
-                        ) : (
-                          <p className="muted">
-                            Awaiting this person’s model reaction.
-                          </p>
-                        );
-                      })()}
-                    </section>
-                  )}
-                  <section className="panel telemetry">
-                    <h3>Inside the simulation</h3>
-                    <div>
-                      <span>Agents</span>
-                      <strong>
-                        {audience?.personas.count.toLocaleString() ?? "—"}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>Reaction calls returned</span>
-                      <strong>
-                        {reactionEvents.reduce(
-                          (n, e) => n + (e.data.per_variant as any[]).length,
-                          0,
-                        )}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>Individual personalities</span>
-                      <strong>{audience?.archetypes.length ?? "—"}</strong>
-                    </div>
-                    <div>
-                      <span>Spread tick</span>
-                      <strong>{String(spread?.data.tick ?? "—")}</strong>
-                    </div>
-                    <div>
-                      <span>Exposed share</span>
-                      <strong>
-                        {spread
-                          ? `${Math.round(Number(spread.data.share_reached) * 100)}%`
-                          : "—"}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>Objections</span>
-                      <strong>
-                        {String(spread?.data.objected_count ?? "—")}
-                      </strong>
-                    </div>
-                  </section>
-                </div>
-              </div>
-              {skip && (
-                <p className="muted">
-                  The run is still working. The dashboard will open as soon as
-                  results are ready.
-                </p>
-              )}
-            </div>
-          )}
-          {view === "chat" && run?.result && (
-            <div className="chat-content">
-              <div className="panel-heading">
-                <div>
-                  <h1>{run.campaign.brand}</h1>
-                  <p className="muted">
-                    Continue the conversation. Your dashboard remains a
-                    revisable artifact.
-                  </p>
-                </div>
-                <button onClick={() => setView("dashboard")}>
-                  Open dashboard artifact ↗
-                </button>
-              </div>
-              <ArtifactWorkspace
+          <main
+            ref={scroll}
+            className={view === "chat" ? "chat-main" : "content-main"}
+          >
+            {view === "dashboard" && run?.result && (
+              <Dashboard
                 run={run}
                 onDraft={fresh}
                 onConversation={(messages) =>
@@ -1116,500 +1019,596 @@ export default function Alice({
                     messages: [{ role: "user", text: c.notes }, ...messages],
                   })
                 }
-              />
-            </div>
-          )}
-          {view === "chat" && !run?.result && (
-            <div className="chat-content">
-              <div className="welcome">
-                <div className="hero-logo">
-                  <Logo />
-                </div>
-                <span className="eyebrow">
-                  A little foresight. A better first impression.
-                </span>
-                <h1>What are we testing today?</h1>
-                <p>
-                  See how your next campaign might land across Indonesia.
-                  <br />
-                  Explore reactions, spot cultural risks, and find a stronger
-                  direction.
-                </p>
-              </div>
-              <div className="flow-strip">
-                {["Brief", "Clarify", "Simulate", "Decide"].map((s, i) => (
-                  <span key={s}>
-                    <b>0{i + 1}</b>
-                    {s}
-                    {i < 3 && <i>⟶</i>}
-                  </span>
-                ))}
-              </div>
-              {currentChat?.messages.map((m, i) => (
-                <div
-                  className={
-                    m.role === "assistant"
-                      ? "assistant-message"
-                      : "user-message"
-                  }
-                  key={i}
-                >
-                  <span>{m.text}</span>
-                </div>
-              ))}
-              {questions.length > 0 && (
-                <div className="clarify-thread">
-                  <div className="assistant-heading">
-                    <Logo />
-                    <span>
-                      I read {c.variants.length} variants for {c.brand}. Let’s
-                      lock in the context.
-                    </span>
-                  </div>
-                  {questions
-                    .filter((q) => answers[q.id] || q.id === question?.id)
-                    .map((q) => (
-                      <section className="panel question" key={q.id}>
-                        <span className="eyebrow">
-                          A detail that changes the simulation
-                        </span>
-                        <h3>{q.text}</h3>
-                        <div className="option-chips">
-                          {q.options.map((option: string) => (
-                            <button
-                              key={option}
-                              disabled={!!answers[q.id]}
-                              className={
-                                answers[q.id] === option ? "active" : ""
-                              }
-                              onClick={() => answer(option)}
-                            >
-                              {option}
-                            </button>
-                          ))}
-                        </div>
-                        {answers[q.id] ? (
-                          <p className="good">✓ {answers[q.id]}</p>
-                        ) : (
-                          <form
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              answer(freeAnswer);
-                            }}
-                          >
-                            <input
-                              aria-label="Custom clarification answer"
-                              value={freeAnswer}
-                              onChange={(e) => setFreeAnswer(e.target.value)}
-                              placeholder="Or type your own answer…"
-                            />
-                            <button disabled={!freeAnswer.trim()}>
-                              Continue →
-                            </button>
-                          </form>
-                        )}
-                      </section>
-                    ))}
-                </div>
-              )}
-              {busy && (
-                <div className="assistant-heading">
-                  <Logo />
-                  <span className="typing">Reading the brief ● ● ●</span>
-                </div>
-              )}
-              <section
-                className="composer"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  files(e.dataTransfer.files);
+                onReplay={replay}
+                onUpdate={setRun}
+                onAccept={(f) => {
+                  const draft = clone(run.campaign);
+                  draft.variants = draft.variants.map((v) =>
+                    v.id === f.variant_id
+                      ? {
+                          ...v,
+                          headline: f.rewrite.headline,
+                          copy: f.rewrite.copy,
+                          visual_description: f.rewrite.visual,
+                        }
+                      : v,
+                  );
+                  fresh(draft);
                 }}
-              >
-                <div className="composer-header">
-                  <div className="segmented">
+              />
+            )}
+            {view === "run" && (
+              <div className="run-view enter">
+                <div className="panel-heading">
+                  <div>
+                    <span className="eyebrow">
+                      {replaying
+                        ? "Cached replay"
+                        : "A synthetic audience, a new perspective"}
+                    </span>
+                    <h1>
+                      {replaying ? "Replaying" : "Simulating"} {c.brand}
+                    </h1>
+                    <p>
+                      {tiers[c.depth].personas.toLocaleString()} agents ·{" "}
+                      {c.variants.length} variants · {pretty(c.depth)} · Seed{" "}
+                      {c.seed}
+                      {health?.mock ? " · Mock data" : ""}
+                    </p>
+                  </div>
+                  <div className="actions">
                     <button
-                      className={c.variants.length === 1 ? "active" : ""}
-                      onClick={() =>
-                        setCampaign({ ...c, variants: [c.variants[0]] })
-                      }
+                      onClick={() => {
+                        if (replaying) {
+                          replayTimers.current.forEach(clearTimeout);
+                          setRunning(false);
+                          setView("dashboard");
+                        } else if (run?.status === "done") {
+                          setView("dashboard");
+                        } else {
+                          setSkip(true);
+                        }
+                      }}
                     >
-                      Single campaign
+                      Skip to dashboard
                     </button>
-                    <button
-                      className={c.variants.length > 1 ? "active" : ""}
-                      onClick={() =>
-                        setCampaign({
-                          ...c,
-                          variants:
-                            c.variants.length > 1
-                              ? c.variants
-                              : [
-                                  ...c.variants,
-                                  {
-                                    ...clone(c.variants[0]),
-                                    id: "B",
-                                    label: "Direction B",
-                                    headline: "",
-                                    copy: "",
-                                    visual_description: "",
-                                    attachment_ids: [],
-                                  },
-                                ],
-                        })
-                      }
-                    >
-                      Multiple campaigns
+                    <button onClick={cancel}>
+                      {replaying ? "Close" : "Cancel"}
                     </button>
                   </div>
-                  <label className="brand-field">
-                    Brand{" "}
-                    <input
-                      value={c.brand}
-                      placeholder="Your brand"
-                      onChange={(e) =>
-                        setCampaign({ ...c, brand: e.target.value })
+                </div>
+                <div className="stage-stepper">
+                  {[
+                    "Brief",
+                    "Audience",
+                    "Reactions",
+                    "Spread",
+                    "Results",
+                    ...(c.tools.risk ? ["Risk scan"] : []),
+                    ...(c.tools.risk && c.tools.rewrite ? ["Fixes"] : []),
+                  ].map((s, i) => (
+                    <div
+                      key={s}
+                      className={
+                        Number(lastStage?.data.index ?? 0) >= i ? "active" : ""
+                      }
+                    >
+                      <span>
+                        {Number(lastStage?.data.index ?? 0) > i ? "✓" : i + 1}
+                      </span>
+                      {s}
+                    </div>
+                  ))}
+                </div>
+                <div className="run-grid">
+                  <section className="panel run-map">
+                    <div className="panel-heading">
+                      <h3>
+                        <span className="pulse-dot" /> {stageName}
+                      </h3>
+                      <span className="tag">
+                        {replaying ? "Replay" : "Same audience · every variant"}
+                      </span>
+                    </div>
+                    <Map
+                      onAgentClick={setLiveSelected}
+                      personas={audience?.personas}
+                      sentiments={audience?.archetypes.map((a) => {
+                        const e = reactionEvents.find(
+                          (e) => e.data.archetype_id === a.id,
+                        );
+                        return (
+                          e?.data.per_variant as Reaction[] | undefined
+                        )?.[0]?.sentiment;
+                      })}
+                      stage={stageName}
+                      exposed={events
+                        .filter(
+                          (e) =>
+                            e.type === "spread" &&
+                            e.data.variant_id === spread?.data.variant_id,
+                        )
+                        .flatMap((e) => e.data.newly_exposed as number[])}
+                      edges={
+                        (spread?.data.edges ??
+                          (audience as any)?.connections ??
+                          []) as any
                       }
                     />
-                  </label>
-                </div>
-                <p className="mode-description">
-                  {c.variants.length > 1
-                    ? "Test 2–3 campaign directions against the same people, then compare their response."
-                    : "Explore how one campaign lands, where it loses interest, and what to improve."}
-                </p>
-                <div className="variant-tray">
-                  {c.variants.map((v, i) => (
-                    <div className="variant-card" key={v.id}>
-                      <div>
-                        <span
-                          style={{
-                            color: `var(--variant-${v.id.toLowerCase()})`,
-                          }}
-                        >
-                          ●
-                        </span>
-                        <input
-                          aria-label={`Variant ${v.id} label`}
-                          value={v.label}
-                          onChange={(e) =>
-                            setCampaign({
-                              ...c,
-                              variants: c.variants.map((x, j) =>
-                                j === i ? { ...x, label: e.target.value } : x,
-                              ),
-                            })
-                          }
-                        />
-                        <b>{v.id}</b>
-                        {c.variants.length > 2 && (
+                    <div className="legend">
+                      <span className="good">■ Positive</span>
+                      <span className="warn">■ Neutral</span>
+                      <span className="bad">■ Negative / objection</span>
+                      <span>□ Not reached</span>
+                    </div>
+                  </section>
+                  <div>
+                    <section className="panel live-feed">
+                      <div className="panel-heading">
+                        <h3>From the audience</h3>
+                        <span className="tag">Synthetic voices</span>
+                      </div>
+                      {reactionEvents.length ? (
+                        reactionEvents
+                          .slice(-5)
+                          .reverse()
+                          .map((e) => (
+                            <article className="enter" key={e.seq}>
+                              <div className="eyebrow">
+                                {String(e.data.label)}
+                              </div>
+                              <p>“{String(e.data.comment)}”</p>
+                              <small>
+                                {String(e.data.count)} agents represented
+                              </small>
+                            </article>
+                          ))
+                      ) : (
+                        <div className="waiting">
+                          <span className="typing">● ● ●</span>
+                          <p>Alice is preparing the audience.</p>
+                        </div>
+                      )}
+                    </section>
+                    {liveSelected !== null && audience && (
+                      <section className="panel live-inspector">
+                        <div className="panel-heading">
+                          <h3>Agent {liveSelected + 1}</h3>
                           <button
-                            aria-label={`Remove variant ${v.id}`}
+                            aria-label="Close agent inspector"
+                            onClick={() => setLiveSelected(null)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <p>
+                          {
+                            audience.archetypes[
+                              audience.personas.archetype_index[liveSelected]
+                            ]?.blurb
+                          }
+                        </p>
+                        {(() => {
+                          const e = reactionEvents.find(
+                            (e) =>
+                              e.data.archetype_id ===
+                              audience.archetypes[
+                                audience.personas.archetype_index[liveSelected]
+                              ]?.id,
+                          );
+                          const rs = e?.data.per_variant as
+                            Reaction[] | undefined;
+                          return rs ? (
+                            <>
+                              {rs.map((r) => (
+                                <div key={r.variant_id}>
+                                  <h4>Variant {r.variant_id}</h4>
+                                  <blockquote>{r.sample_comment}</blockquote>
+                                  <p>{r.reason}</p>
+                                  <small>
+                                    Attention {r.attention.toFixed(2)} ·
+                                    Sentiment {r.sentiment.toFixed(2)} ·
+                                    Backlash {r.backlash_risk.toFixed(2)}
+                                  </small>
+                                </div>
+                              ))}
+                            </>
+                          ) : (
+                            <p className="muted">
+                              Awaiting this person’s model reaction.
+                            </p>
+                          );
+                        })()}
+                      </section>
+                    )}
+                    <section className="panel telemetry">
+                      <h3>Inside the simulation</h3>
+                      <div>
+                        <span>Agents</span>
+                        <strong>
+                          {audience?.personas.count.toLocaleString() ?? "—"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Reaction calls returned</span>
+                        <strong>
+                          {reactionEvents.reduce(
+                            (n, e) => n + (e.data.per_variant as any[]).length,
+                            0,
+                          )}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Individual personalities</span>
+                        <strong>{audience?.archetypes.length ?? "—"}</strong>
+                      </div>
+                      <div>
+                        <span>Spread tick</span>
+                        <strong>{String(spread?.data.tick ?? "—")}</strong>
+                      </div>
+                      <div>
+                        <span>Exposed share</span>
+                        <strong>
+                          {spread
+                            ? `${Math.round(Number(spread.data.share_reached) * 100)}%`
+                            : "—"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Objections</span>
+                        <strong>
+                          {String(spread?.data.objected_count ?? "—")}
+                        </strong>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+                {skip && (
+                  <p className="muted">
+                    The run is still working. The dashboard will open as soon as
+                    results are ready.
+                  </p>
+                )}
+              </div>
+            )}
+            {view === "chat" && run?.result && (
+              <div className="chat-content">
+                <div className="panel-heading">
+                  <div>
+                    <h1>{run.campaign.brand}</h1>
+                    <p className="muted">
+                      Continue the conversation. Your dashboard remains a
+                      revisable artifact.
+                    </p>
+                  </div>
+                  <button onClick={() => setView("dashboard")}>
+                    Open dashboard artifact ↗
+                  </button>
+                </div>
+                <ArtifactWorkspace
+                  run={run}
+                  onDraft={fresh}
+                  onConversation={(messages) =>
+                    updateChat(active, {
+                      messages: [{ role: "user", text: c.notes }, ...messages],
+                    })
+                  }
+                />
+              </div>
+            )}
+            {view === "chat" && !run?.result && (
+              <div className="chat-content draft-chat">
+                <div className="conversation-thread" key={active} ref={thread}>
+                  {!currentChat?.messages.length && (
+                    <>
+                      <div className="welcome">
+                        <div className="hero-logo">
+                          <Logo />
+                        </div>
+                        <span className="eyebrow">
+                          A little foresight. A better first impression.
+                        </span>
+                        <h1>What are we testing today?</h1>
+                        <p>
+                          See how your next campaign might land across
+                          Indonesia.
+                          <br />
+                          Explore reactions, spot cultural risks, and find a
+                          stronger direction.
+                        </p>
+                      </div>
+                      <div className="flow-strip">
+                        {["Brief", "Clarify", "Simulate", "Decide"].map(
+                          (s, i) => (
+                            <span key={s}>
+                              <b>0{i + 1}</b>
+                              {s}
+                              {i < 3 && <i>⟶</i>}
+                            </span>
+                          ),
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {currentChat?.messages.map((m, i) => (
+                    <div
+                      className={
+                        m.role === "assistant"
+                          ? "assistant-message"
+                          : "user-message"
+                      }
+                      key={i}
+                    >
+                      <span>{m.text}</span>
+                    </div>
+                  ))}
+                  {questions.length > 0 && (
+                    <div className="clarify-thread">
+                      <div className="assistant-heading">
+                        <Logo />
+                        <span>
+                          I read {c.variants.length} directions for {c.brand}.
+                          Let’s lock in the context.
+                        </span>
+                      </div>
+                      {questions
+                        .filter((q) => answers[q.id] || q.id === question?.id)
+                        .map((q) => (
+                          <section className="panel question" key={q.id}>
+                            <span className="eyebrow">
+                              A detail that changes the simulation
+                            </span>
+                            <h3>{q.text}</h3>
+                            <div className="option-chips">
+                              {q.options.map((option: string) => (
+                                <button
+                                  key={option}
+                                  disabled={!!answers[q.id]}
+                                  className={
+                                    answers[q.id] === option ? "active" : ""
+                                  }
+                                  onClick={() => answer(option)}
+                                >
+                                  {option}
+                                </button>
+                              ))}
+                            </div>
+                            {answers[q.id] ? (
+                              <p className="good">✓ {answers[q.id]}</p>
+                            ) : (
+                              <form
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  answer(freeAnswer);
+                                }}
+                              >
+                                <input
+                                  aria-label="Custom clarification answer"
+                                  value={freeAnswer}
+                                  onChange={(e) =>
+                                    setFreeAnswer(e.target.value)
+                                  }
+                                  placeholder="Or type your own answer…"
+                                />
+                                <button disabled={!freeAnswer.trim()}>
+                                  Continue →
+                                </button>
+                              </form>
+                            )}
+                          </section>
+                        ))}
+                    </div>
+                  )}
+                  {busy && (
+                    <div className="assistant-heading">
+                      <Logo />
+                      <span className="typing">Reading the brief ● ● ●</span>
+                    </div>
+                  )}
+                </div>
+                <section
+                  className="composer"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    files(e.dataTransfer.files);
+                  }}
+                >
+                  <textarea
+                    className="brief-input"
+                    aria-label="Campaign brief"
+                    placeholder="Tell Alice about your campaign. The audience, the goal, the moment…"
+                    value={briefInput}
+                    onChange={(e) => setBriefInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!busy && !running) send();
+                      }
+                    }}
+                  />
+                  {attachments.length > 0 && (
+                    <div className="tags">
+                      {attachments.map((a, i) => (
+                        <span key={i}>
+                          ▤ {a.name}
+                          <button
+                            aria-label={`Remove ${a.name}`}
                             onClick={() =>
-                              setCampaign({
-                                ...c,
-                                variants: c.variants
-                                  .filter((_, j) => j !== i)
-                                  .map((x, j) => ({
-                                    ...x,
-                                    id: ["A", "B", "C"][j] as any,
-                                  })),
-                              })
+                              setAttachments((xs) =>
+                                xs.filter((_, j) => j !== i),
+                              )
                             }
                           >
                             ×
                           </button>
-                        )}
-                      </div>
-                      <label
-                        className="creative-label"
-                        htmlFor={`headline-${v.id}`}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="composer-bottom">
+                    <div className="actions">
+                      <button
+                        className="icon-button"
+                        aria-label="Attach text file"
+                        onClick={() => attach.current?.click()}
                       >
-                        Headline
-                        <small>The main line that catches attention.</small>
-                      </label>
-                      <textarea
-                        id={`headline-${v.id}`}
-                        className="creative-field headline-field"
-                        aria-label={`Variant ${v.id} headline`}
-                        placeholder="Headline in Indonesian…"
-                        value={v.headline}
-                        onChange={(e) =>
-                          setCampaign({
-                            ...c,
-                            variants: c.variants.map((x, j) =>
-                              j === i ? { ...x, headline: e.target.value } : x,
-                            ),
-                          })
-                        }
-                      />
-                      <label
-                        className="creative-label"
-                        htmlFor={`message-${v.id}`}
-                      >
-                        Supporting message
-                        <small>
-                          The offer, product benefit, or next action under the
-                          headline.
-                        </small>
-                      </label>
-                      <textarea
-                        id={`message-${v.id}`}
-                        className="creative-field"
-                        aria-label={`Variant ${v.id} copy`}
-                        placeholder="Supporting message: explain the offer, benefit or call to action…"
-                        value={v.copy}
-                        onChange={(e) =>
-                          setCampaign({
-                            ...c,
-                            variants: c.variants.map((x, j) =>
-                              j === i ? { ...x, copy: e.target.value } : x,
-                            ),
-                          })
-                        }
-                      />
-                      <label
-                        className="creative-label"
-                        htmlFor={`visual-${v.id}`}
-                      >
-                        Visual reference or scene
-                        <small>
-                          Attach a reference image, or describe what the
-                          audience will see.
-                        </small>
-                      </label>
-                      <textarea
-                        id={`visual-${v.id}`}
-                        className="creative-field"
-                        aria-label={`Variant ${v.id} visual idea`}
-                        placeholder="What people will see: scene, people, product and on-screen text"
-                        value={v.visual_description}
-                        onChange={(e) =>
-                          setCampaign({
-                            ...c,
-                            variants: c.variants.map((x, j) =>
-                              j === i
-                                ? { ...x, visual_description: e.target.value }
-                                : x,
-                            ),
-                          })
-                        }
-                      />
+                        ＋
+                      </button>
                       <input
+                        ref={attach}
                         hidden
                         type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        ref={(el) => {
-                          visualInputs.current[v.id] = el;
-                        }}
-                        onChange={(e) =>
-                          visualReference(v.id, e.target.files?.[0])
-                        }
+                        accept=".txt,.md,.csv"
+                        multiple
+                        onChange={(e) => files(e.target.files)}
                       />
-                      <button
-                        className="visual-reference-button"
-                        disabled={!!referenceBusy}
-                        onClick={() => visualInputs.current[v.id]?.click()}
-                      >
-                        {referenceBusy === v.id
-                          ? "Reading reference…"
-                          : "＋ Attach visual reference"}
-                      </button>
-                      {v.attachment_ids.length > 0 && (
-                        <small className="reference-file">
-                          {v.attachment_ids.join(", ")} · reference described
-                          for the simulation
-                        </small>
-                      )}
-                    </div>
-                  ))}
-                  {c.variants.length === 2 && (
-                    <button
-                      className="add-variant"
-                      onClick={() =>
-                        setCampaign({
-                          ...c,
-                          variants: [
-                            ...c.variants,
-                            {
-                              ...clone(c.variants[0]),
-                              id: "C",
-                              label: "Direction C",
-                              headline: "",
-                              copy: "",
-                              visual_description: "",
-                              attachment_ids: [],
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      ＋<span>Add variant</span>
-                    </button>
-                  )}
-                </div>
-                <textarea
-                  className="brief-input"
-                  aria-label="Campaign brief"
-                  placeholder="Tell Alice about your campaign. The audience, the goal, the moment…"
-                  value={briefInput}
-                  onChange={(e) => setBriefInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      if (!busy && !running) send();
-                    }
-                  }}
-                />
-                {attachments.length > 0 && (
-                  <div className="tags">
-                    {attachments.map((a, i) => (
-                      <span key={i}>
-                        ▤ {a.name}
+                      <div className="tools-wrap" ref={toolsRef}>
                         <button
-                          aria-label={`Remove ${a.name}`}
-                          onClick={() =>
-                            setAttachments((xs) => xs.filter((_, j) => j !== i))
-                          }
+                          aria-expanded={toolsOpen}
+                          aria-controls="campaign-tools"
+                          onClick={() => setToolsOpen(!toolsOpen)}
                         >
-                          ×
+                          ⚙ Tools{" "}
+                          <span className="count">
+                            {1 + Object.values(c.tools).filter(Boolean).length}
+                          </span>
                         </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="composer-bottom">
-                  <div className="actions">
-                    <button
-                      className="icon-button"
-                      aria-label="Attach text file"
-                      onClick={() => attach.current?.click()}
-                    >
-                      ＋
-                    </button>
-                    <input
-                      ref={attach}
-                      hidden
-                      type="file"
-                      accept=".txt,.md,.csv"
-                      multiple
-                      onChange={(e) => files(e.target.files)}
-                    />
-                    <div className="tools-wrap" ref={toolsRef}>
-                      <button
-                        aria-expanded={toolsOpen}
-                        aria-controls="campaign-tools"
-                        onClick={() => setToolsOpen(!toolsOpen)}
-                      >
-                        ⚙ Tools{" "}
-                        <span className="count">
-                          {1 + Object.values(c.tools).filter(Boolean).length}
-                        </span>
-                      </button>
-                      {toolsOpen && (
-                        <div
-                          id="campaign-tools"
-                          className="tools-popover"
-                          role="dialog"
-                          aria-label="Campaign tools"
-                        >
-                          <h3>Give Alice the right tools.</h3>
-                          <div>
-                            <span>
-                              Persona swarm
-                              <small>
-                                A shared synthetic audience for every variant
-                              </small>
-                            </span>
-                            <span>Always on</span>
-                          </div>
-                          {(["risk", "calendar", "rewrite"] as const).map(
-                            (key) => (
-                              <label key={key}>
-                                <span>
-                                  {
-                                    {
-                                      risk: "Risk & SARA scan",
-                                      calendar: "Cultural calendar",
-                                      rewrite: "Auto-rewrite fixes",
-                                    }[key]
-                                  }
-                                  <small>
+                        {toolsOpen && (
+                          <div
+                            id="campaign-tools"
+                            className="tools-popover"
+                            role="dialog"
+                            aria-label="Campaign tools"
+                          >
+                            <h3>Give Alice the right tools.</h3>
+                            <div>
+                              <span>
+                                Persona swarm
+                                <small>
+                                  A shared synthetic audience for every variant
+                                </small>
+                              </span>
+                              <span>Always on</span>
+                            </div>
+                            {(["risk", "calendar", "rewrite"] as const).map(
+                              (key) => (
+                                <label key={key}>
+                                  <span>
                                     {
                                       {
-                                        risk: "Find sensitive cultural and reputational risks",
-                                        calendar:
-                                          "Include season and timing in the context",
-                                        rewrite:
-                                          "Draft and re-test safer alternatives",
+                                        risk: "Risk & SARA scan",
+                                        calendar: "Cultural calendar",
+                                        rewrite: "Auto-rewrite fixes",
                                       }[key]
                                     }
-                                  </small>
-                                </span>
-                                <input
-                                  type="checkbox"
-                                  checked={c.tools[key]}
-                                  onChange={(e) =>
-                                    setCampaign({
-                                      ...c,
-                                      tools: {
-                                        ...c.tools,
-                                        [key]: e.target.checked,
-                                      },
-                                    })
-                                  }
-                                />
-                              </label>
-                            ),
-                          )}
-                        </div>
-                      )}
+                                    <small>
+                                      {
+                                        {
+                                          risk: "Find sensitive cultural and reputational risks",
+                                          calendar:
+                                            "Include season and timing in the context",
+                                          rewrite:
+                                            "Draft and re-test safer alternatives",
+                                        }[key]
+                                      }
+                                    </small>
+                                  </span>
+                                  <input
+                                    type="checkbox"
+                                    checked={c.tools[key]}
+                                    onChange={(e) =>
+                                      setCampaign({
+                                        ...c,
+                                        tools: {
+                                          ...c.tools,
+                                          [key]: e.target.checked,
+                                        },
+                                      })
+                                    }
+                                  />
+                                </label>
+                              ),
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <select
+                        aria-label="Simulation depth"
+                        value={c.depth}
+                        onChange={(e) =>
+                          setCampaign({ ...c, depth: e.target.value as any })
+                        }
+                      >
+                        {Object.entries(tiers).map(([id, t]) => (
+                          <option key={id} value={id}>
+                            {pretty(id)} · {t.personas.toLocaleString()} agents
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <select
-                      aria-label="Simulation depth"
-                      value={c.depth}
-                      onChange={(e) =>
-                        setCampaign({ ...c, depth: e.target.value as any })
-                      }
-                    >
-                      {Object.entries(tiers).map(([id, t]) => (
-                        <option key={id} value={id}>
-                          {pretty(id)} · {t.personas.toLocaleString()} agents
-                        </option>
-                      ))}
-                    </select>
+                    <div className="actions">
+                      <span className="estimate">
+                        Up to {calls} calls · ~
+                        {Math.ceil(
+                          ((archetypes * c.variants.length) / 8) * 2.5 + 20,
+                        )}
+                        s{" "}
+                        <small>
+                          ~${(calls * 0.001).toFixed(2)} planning estimate
+                        </small>
+                      </span>
+                      <button
+                        aria-label="Send campaign"
+                        className="send-button"
+                        disabled={
+                          busy ||
+                          running ||
+                          !!question ||
+                          c.variants.some(
+                            (v) => referencesReading[`${c.id}:${v.id}`],
+                          )
+                        }
+                        onClick={send}
+                      >
+                        ↑
+                      </button>
+                    </div>
                   </div>
-                  <div className="actions">
-                    <span className="estimate">
-                      Up to {calls} calls · ~
-                      {Math.ceil(
-                        ((archetypes * c.variants.length) / 8) * 2.5 + 20,
-                      )}
-                      s{" "}
-                      <small>
-                        ~${(calls * 0.001).toFixed(2)} planning estimate
-                      </small>
-                    </span>
-                    <button
-                      aria-label="Send campaign"
-                      className="send-button"
-                      disabled={
-                        busy || running || !!question || !!referenceBusy
-                      }
-                      onClick={send}
-                    >
-                      ↑
-                    </button>
-                  </div>
+                </section>
+                <div className="composer-disclaimer">
+                  <span>◈</span> Alice simulates audiences. Treat results as
+                  directional, not a forecast.
                 </div>
-              </section>
-              <div className="composer-disclaimer">
-                <span>◈</span> Alice simulates audiences. Treat results as
-                directional, not a forecast.
               </div>
-            </div>
+            )}
+          </main>
+          {view === "chat" && !run?.result && (
+            <>
+              {directionsOpen && (
+                <button
+                  className="directions-backdrop"
+                  aria-label="Close campaign directions"
+                  onClick={() => setDirectionsOpen(false)}
+                />
+              )}
+              <CampaignDirections
+                campaign={c}
+                onChange={setCampaign}
+                onReference={applyReference}
+                onReferenceBusy={(campaignId, variantId, busy) =>
+                  setReferencesReading((xs) => ({
+                    ...xs,
+                    [`${campaignId}:${variantId}`]: busy,
+                  }))
+                }
+                disabled={busy || running}
+                open={directionsOpen}
+                onClose={() => setDirectionsOpen(false)}
+              />
+            </>
           )}
-        </main>
+        </div>
         <div className="workspace-footer">
           <span>A clearer view before you go live.</span>
           <span>

@@ -8,6 +8,9 @@ process.env.CORE_INTERNAL_TOKEN ||= randomBytes(32).toString("hex");
 process.env.CORE_PORT ||= "4000";
 process.env.PORT ||= "3000";
 process.env.CORE_BASE_URL ||= `http://127.0.0.1:${process.env.CORE_PORT}`;
+// Keep production builds away from the running development server's assets.
+if (process.argv.includes("--production"))
+  process.env.ALICE_NEXT_DIST_DIR ||= ".next-production";
 if (
   !process.env.DATABASE_URL &&
   process.env.MOCK !== "1" &&

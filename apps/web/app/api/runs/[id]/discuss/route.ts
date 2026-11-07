@@ -1,5 +1,5 @@
 import { ownRun, checkOrigin, authError } from "../../../../../lib/auth";
-import { withAccount } from "@alice/agents";
+import { withAccount, createTask } from "@alice/agents";
 import { readArtifact, discuss } from "@alice/agents";
 type C = { params: Promise<{ id: string }> };
 export async function GET(_: Request, c: C) {
@@ -18,9 +18,12 @@ export async function POST(req: Request, c: C) {
     const user = await ownRun(id);
     const body = await req.json();
     if (typeof body.message !== "string") throw new Error("Message required");
-    return Response.json(
-      await withAccount(user.id, () => discuss(id, body.message)),
-    );
+    const work = () => withAccount(user.id, () => discuss(id, body.message));
+    if (req.headers.get("prefer")?.includes("respond-async"))
+      return Response.json(createTask(user.id, "discussion", work), {
+        status: 202,
+      });
+    return Response.json(await work());
   } catch (e) {
     return authError(e);
   }

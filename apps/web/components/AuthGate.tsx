@@ -1,4 +1,5 @@
 "use client";
+import { readJson, requestTask } from "../lib/http";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -22,7 +23,7 @@ export default function AuthGate() {
           throw new Error(
             "The server is unavailable. Start the complete stack.",
           );
-        return r.json();
+        return readJson(r);
       })
       .then((x) => setUser(x.user))
       .catch((e) => setError(e.message))
@@ -39,7 +40,7 @@ export default function AuthGate() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(data)),
       });
-      const body = await r.json();
+      const body = await readJson(r);
       if (!r.ok) throw new Error(body.error);
       setUser(body.user);
     } catch (e) {
@@ -64,7 +65,7 @@ export default function AuthGate() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
       });
-      const body = await r.json();
+      const body = await readJson(r);
       if (!r.ok) throw new Error(body.error);
       setMessage("Password updated. Other sessions have been signed out.");
       e.currentTarget?.reset();
@@ -89,7 +90,7 @@ export default function AuthGate() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: data.get("password") }),
       });
-      const body = await r.json();
+      const body = await readJson(r);
       if (!r.ok) throw new Error(body.error);
       setUser(null);
       setSettings(false);

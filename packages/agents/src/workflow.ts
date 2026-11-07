@@ -1,4 +1,5 @@
 import { effectivenessFindings } from "./effectiveness";
+import pLimit from "p-limit";
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -85,6 +86,9 @@ export function recommendationGate(r: Result) {
     ? `Variant ${r.overall.winner} has the highest score, but do not launch as is. A high-severity risk blocks recommendation.`
     : "";
 }
+// Bound each run's submitted calls so interactive requests and other runs can
+// enter the existing global model limiter instead of waiting behind 1,500 calls.
+const reactionQueues = new WeakMap<Budget, ReturnType<typeof pLimit>>();
 async function react(
   c: Campaign,
   a: Archetype,
@@ -93,24 +97,31 @@ async function react(
   sample = 1,
 ): Promise<Reaction> {
   try {
-    const r = await structured(
-      "reaction",
-      ReactionSchema,
-      "You are ONE individual synthetic person, not a demographic average. Use your unique seeded personality in the blurb. Do not infer personality from religion or ethnicity. Different people in the same segment may disagree.\n" +
-        prompt("archetype-reaction") +
-        "\n" +
-        prompt("fewshot-bahasa"),
-      {
-        campaign: {
-          ...c,
-          timing: c.tools.calendar ? c.timing : "Calendar context disabled",
-          variants: undefined,
+    let queue = reactionQueues.get(b);
+    if (!queue) {
+      queue = pLimit(Math.max(1, Number(process.env.LLM_CONCURRENCY || 8)));
+      reactionQueues.set(b, queue);
+    }
+    const r = await queue(() =>
+      structured(
+        "reaction",
+        ReactionSchema,
+        "You are ONE individual synthetic person, not a demographic average. Use your unique seeded personality in the blurb. Do not infer personality from religion or ethnicity. Different people in the same segment may disagree.\n" +
+          prompt("archetype-reaction") +
+          "\n" +
+          prompt("fewshot-bahasa"),
+        {
+          campaign: {
+            ...c,
+            timing: c.tools.calendar ? c.timing : "Calendar context disabled",
+            variants: undefined,
+          },
+          archetype: a,
+          variant: v,
         },
-        archetype: a,
-        variant: v,
-      },
-      b,
-      { role: "reaction", sample, mock: () => mockReaction(c, a, v) },
+        b,
+        { role: "reaction", sample, mock: () => mockReaction(c, a, v) },
+      ),
     );
     if (r.variant_id !== v.id || r.archetype_id !== a.id)
       throw new Error("Reaction identity mismatch");
@@ -634,6 +645,17 @@ export async function getRun(id: string): Promise<Run | null> {
     cancelled: false,
     started: Date.now(),
     owner_id: saved.user_id,
+  };
+}
+export async function getRunSummary(id: string) {
+  const run = await getRun(id);
+  if (!run) return null;
+  return {
+    id: run.id,
+    status: run.status,
+    error: run.error,
+    stage: run.events.filter((e) => e.type === "stage").at(-1)?.data.id,
+    reactions: run.reactions.length,
   };
 }
 export async function startRun(c: Campaign, owner_id?: string) {

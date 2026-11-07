@@ -1,8 +1,34 @@
 import { requireUser, checkOrigin, authError } from "../../../lib/auth";
-import { withAccount } from "@alice/agents";
+import { withAccount, storeGet, getRunSummary } from "@alice/agents";
 import { startRun } from "@alice/agents";
 import { CampaignSchema } from "@alice/contracts";
 export const runtime = "nodejs";
+export async function GET(req: Request) {
+  try {
+    const user = await requireUser();
+    const ids = [
+      ...new Set(
+        (new URL(req.url).searchParams.get("ids") ?? "")
+          .split(",")
+          .filter(Boolean),
+      ),
+    ];
+    if (ids.length > 50)
+      throw new Error("Select at most 50 running simulations");
+    const summaries = await Promise.all(
+      ids.map(async (id) => {
+        const saved = await storeGet("runs", id);
+        return saved?.user_id === user.id ? getRunSummary(id) : null;
+      }),
+    );
+    return Response.json(
+      { runs: summaries.filter(Boolean) },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (e) {
+    return authError(e);
+  }
+}
 export async function POST(req: Request) {
   try {
     checkOrigin(req);

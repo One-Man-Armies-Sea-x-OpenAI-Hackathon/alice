@@ -1,4 +1,5 @@
 "use client";
+import { readJson, requestTask } from "../lib/http";
 import { useState } from "react";
 import {
   type Campaign,
@@ -695,7 +696,7 @@ export default function Dashboard({
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ flag_id: f.flag_id }),
                       });
-                      const next = await response.json();
+                      const next = await readJson(response);
                       if (!response.ok) throw new Error(next.error);
                       onUpdate(next);
                     } catch (e) {

@@ -3,3 +3,5 @@ export * from "./intake/index";
 export * from "./explain/index";
 export * from "./workflow";
 export * from "./artifact";
+
+export * from "./tasks";
