@@ -114,6 +114,21 @@ async fn core_rejects_missing_or_incomplete_reactions() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+    let ids = ["A", "B", "D", "AA"];
+    let rs: Vec<_> = ids.iter().flat_map(|id| {
+        a["archetypes"].as_array().unwrap().iter().map(move |arc| json!({
+            "variant_id":id,"archetype_id":arc["id"],"attention":0.7,
+            "sentiment":0.4,"share_likelihood":0.2,"click_likelihood":0.1,
+            "backlash_risk":0.02,"backlash_category":"none"
+        }))
+    }).collect();
+    let (status, outcome) = request(app.clone(), "POST", "/v1/simulate",
+        json!({"audience_id":a["audience_id"],"reactions":rs})).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(outcome["outcomes"].as_array().unwrap().len(), 4);
+    let (status, _) = request(app.clone(), "POST", "/v1/simulate",
+        json!({"audience_id":a["audience_id"],"reactions":&rs[..rs.len()-1]})).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(
         request(app, "POST", "/v1/audience", json!({"depth":"deep"}))
             .await

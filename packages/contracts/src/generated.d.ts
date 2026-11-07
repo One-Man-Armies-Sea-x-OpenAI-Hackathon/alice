@@ -140,69 +140,27 @@ export interface AudienceRequest {
     notes: string;
     /**
      * @minItems 1
-     * @maxItems 3
      */
-    variants:
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ]
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ]
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ];
+    variants: [
+      {
+        id: string;
+        label: string;
+        headline: string;
+        copy: string;
+        visual_description: string;
+        attachment_ids: string[];
+        ai_drafted: boolean;
+      },
+      ...{
+        id: string;
+        label: string;
+        headline: string;
+        copy: string;
+        visual_description: string;
+        attachment_ids: string[];
+        ai_drafted: boolean;
+      }[]
+    ];
     tools: {
       risk: boolean;
       calendar: boolean;
@@ -306,69 +264,27 @@ export interface Campaign {
   notes: string;
   /**
    * @minItems 1
-   * @maxItems 3
    */
-  variants:
-    | [
-        {
-          id: "A" | "B" | "C";
-          label: string;
-          headline: string;
-          copy: string;
-          visual_description: string;
-          attachment_ids: string[];
-          ai_drafted: boolean;
-        }
-      ]
-    | [
-        {
-          id: "A" | "B" | "C";
-          label: string;
-          headline: string;
-          copy: string;
-          visual_description: string;
-          attachment_ids: string[];
-          ai_drafted: boolean;
-        },
-        {
-          id: "A" | "B" | "C";
-          label: string;
-          headline: string;
-          copy: string;
-          visual_description: string;
-          attachment_ids: string[];
-          ai_drafted: boolean;
-        }
-      ]
-    | [
-        {
-          id: "A" | "B" | "C";
-          label: string;
-          headline: string;
-          copy: string;
-          visual_description: string;
-          attachment_ids: string[];
-          ai_drafted: boolean;
-        },
-        {
-          id: "A" | "B" | "C";
-          label: string;
-          headline: string;
-          copy: string;
-          visual_description: string;
-          attachment_ids: string[];
-          ai_drafted: boolean;
-        },
-        {
-          id: "A" | "B" | "C";
-          label: string;
-          headline: string;
-          copy: string;
-          visual_description: string;
-          attachment_ids: string[];
-          ai_drafted: boolean;
-        }
-      ];
+  variants: [
+    {
+      id: string;
+      label: string;
+      headline: string;
+      copy: string;
+      visual_description: string;
+      attachment_ids: string[];
+      ai_drafted: boolean;
+    },
+    ...{
+      id: string;
+      label: string;
+      headline: string;
+      copy: string;
+      visual_description: string;
+      attachment_ids: string[];
+      ai_drafted: boolean;
+    }[]
+  ];
   tools: {
     risk: boolean;
     calendar: boolean;
@@ -442,69 +358,27 @@ export interface Clarifier {
     timing: string;
     /**
      * @minItems 1
-     * @maxItems 3
      */
-    variants:
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ]
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ]
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ];
+    variants: [
+      {
+        id: string;
+        label: string;
+        headline: string;
+        copy: string;
+        visual_description: string;
+        attachment_ids: string[];
+        ai_drafted: boolean;
+      },
+      ...{
+        id: string;
+        label: string;
+        headline: string;
+        copy: string;
+        visual_description: string;
+        attachment_ids: string[];
+        ai_drafted: boolean;
+      }[]
+    ];
     detected_missing: string[];
   };
 }
@@ -528,69 +402,27 @@ export interface ClarifyRequest {
     notes: string;
     /**
      * @minItems 1
-     * @maxItems 3
      */
-    variants:
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ]
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ]
-      | [
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          },
-          {
-            id: "A" | "B" | "C";
-            label: string;
-            headline: string;
-            copy: string;
-            visual_description: string;
-            attachment_ids: string[];
-            ai_drafted: boolean;
-          }
-        ];
+    variants: [
+      {
+        id: string;
+        label: string;
+        headline: string;
+        copy: string;
+        visual_description: string;
+        attachment_ids: string[];
+        ai_drafted: boolean;
+      },
+      ...{
+        id: string;
+        label: string;
+        headline: string;
+        copy: string;
+        visual_description: string;
+        attachment_ids: string[];
+        ai_drafted: boolean;
+      }[]
+    ];
     tools: {
       risk: boolean;
       calendar: boolean;
@@ -603,6 +435,8 @@ export interface ClarifyRequest {
     [k: string]: string;
   };
 }
+
+export type DirectionId = string;
 
 export interface Edge {
   from: number;
@@ -2000,7 +1834,7 @@ export interface Translation {
 }
 
 export interface Variant {
-  id: "A" | "B" | "C";
+  id: string;
   label: string;
   headline: string;
   copy: string;

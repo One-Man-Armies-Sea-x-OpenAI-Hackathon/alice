@@ -1,4 +1,5 @@
 "use client";
+import AutoTextarea from "./AutoTextarea";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
@@ -9,7 +10,7 @@ import {
   type Reaction,
   type Fix,
 } from "@alice/contracts";
-import { pretty, tiers } from "../lib/display";
+import { pretty, tiers, plannedCalls } from "../lib/display";
 import { readJson, requestTask, pollTask } from "../lib/http";
 import CampaignDirections from "./CampaignDirections";
 import dynamic from "next/dynamic";
@@ -126,6 +127,8 @@ export default function Alice({
   const deletedChats = useRef(new Set<string>());
   const pendingIntakes = useRef(new Set<string>());
   const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Chat | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [referencesReading, setReferencesReading] = useState<
     Record<string, boolean>
   >({});
@@ -242,6 +245,7 @@ export default function Alice({
       if (e.key === "Escape") {
         setToolsOpen(false);
         setDirectionsOpen(false);
+        setPendingDelete(null);
       }
     }
     window.addEventListener("keydown", esc);
@@ -676,6 +680,12 @@ export default function Alice({
       campaign.variants.some((v) => referencesReading[`${campaign.id}:${v.id}`])
     )
       return;
+    if (plannedCalls(campaign) > (health?.limits?.max_calls ?? 16000)) {
+      setError(
+        "This plan exceeds the simulation call budget. Reduce directions, choose Quick depth, or turn off automatic fixes. Your directions remain in the plan.",
+      );
+      return;
+    }
     if (!briefInput.trim()) {
       setError("Add a brief before sending.");
       return;
@@ -816,6 +826,16 @@ export default function Alice({
       );
     }
   }
+  async function confirmDelete() {
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    try {
+      await removeChat(pendingDelete);
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
   if (!campaign) return <main className="loading">Preparing Alice…</main>;
   const c = campaign;
   const currentChat = chats.find((x) => x.id === active);
@@ -826,16 +846,16 @@ export default function Alice({
   const reactionEvents = events.filter((e) => e.type === "reaction");
   const spread = events.filter((e) => e.type === "spread").at(-1);
   const archetypes = tiers[c.depth].archetypes;
-  const calls =
-    archetypes * (c.variants.length + (c.variants.length > 1 ? 1 : 0)) +
-    8 +
-    (c.tools.risk && c.tools.rewrite
-      ? 2 * (archetypes + 2) * Math.min(3, c.variants.length)
-      : 0);
+  const calls = plannedCalls(c);
+  const callCap = health?.limits?.max_calls ?? 16000;
   const question = questions.find((q) => !answers[q.id]);
   return (
     <div className="app">
-      <aside className={`sidebar ${sidebar ? "open" : "closed"}`}>
+      <aside
+        className={`sidebar ${sidebar ? "open" : "closed"}`}
+        aria-hidden={!sidebar}
+        inert={!sidebar}
+      >
         <div className="brand">
           <Logo />
           <strong>ALICE</strong>
@@ -890,7 +910,7 @@ export default function Alice({
               <button
                 className="delete-chat"
                 aria-label={`Delete ${chat.title}`}
-                onClick={() => removeChat(chat)}
+                onClick={() => setPendingDelete(chat)}
               >
                 ×
               </button>
@@ -947,8 +967,6 @@ export default function Alice({
                 updateChat(active, { title: e.target.value });
               }}
             />
-            <span className="topbar-slash">/</span>
-            <span className="muted">Campaign lab</span>
           </div>
           <div className="actions">
             {view === "chat" && !run?.result && (
@@ -1012,6 +1030,7 @@ export default function Alice({
           >
             {view === "dashboard" && run?.result && (
               <Dashboard
+                key={run.id}
                 run={run}
                 onDraft={fresh}
                 onConversation={(messages) =>
@@ -1165,7 +1184,7 @@ export default function Alice({
                           ))
                       ) : (
                         <div className="waiting">
-                          <span className="typing">● ● ●</span>
+                          <LoadingDots />
                           <p>Alice is preparing the audience.</p>
                         </div>
                       )}
@@ -1382,7 +1401,7 @@ export default function Alice({
                                   answer(freeAnswer);
                                 }}
                               >
-                                <input
+                                <AutoTextarea
                                   aria-label="Custom clarification answer"
                                   value={freeAnswer}
                                   onChange={(e) =>
@@ -1402,7 +1421,9 @@ export default function Alice({
                   {busy && (
                     <div className="assistant-heading">
                       <Logo />
-                      <span className="typing">Reading the brief ● ● ●</span>
+                      <span role="status">
+                        Reading the brief <LoadingDots />
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1414,7 +1435,7 @@ export default function Alice({
                     files(e.dataTransfer.files);
                   }}
                 >
-                  <textarea
+                  <AutoTextarea
                     className="brief-input"
                     aria-label="Campaign brief"
                     placeholder="Tell Alice about your campaign. The audience, the goal, the moment…"
@@ -1576,6 +1597,13 @@ export default function Alice({
                     </div>
                   </div>
                 </section>
+                {calls > callCap && (
+                  <p className="budget-note warn" role="status">
+                    ! Planned {calls.toLocaleString()} calls exceed the{" "}
+                    {callCap.toLocaleString()} cap. Reduce directions, depth or
+                    automatic fixes before running.
+                  </p>
+                )}
                 <div className="composer-disclaimer">
                   <span>◈</span> Alice simulates audiences. Treat results as
                   directional, not a forecast.
@@ -1616,6 +1644,43 @@ export default function Alice({
           </span>
         </div>
       </div>
+      {pendingDelete && (
+        <div
+          className="modal-backdrop"
+          onClick={() => !deleting && setPendingDelete(null)}
+        >
+          <section
+            className="panel delete-conversation-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-conversation-title"
+            aria-describedby="delete-conversation-description"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="delete-conversation-title">Delete this conversation?</h2>
+            <p id="delete-conversation-description">
+              Remove “{pendingDelete.title}” from your conversation history. Any
+              active simulation for it will be canceled.
+            </p>
+            <div className="actions">
+              <button
+                autoFocus
+                disabled={deleting}
+                onClick={() => setPendingDelete(null)}
+              >
+                Keep conversation
+              </button>
+              <button
+                className="danger"
+                disabled={deleting}
+                onClick={confirmDelete}
+              >
+                {deleting ? "Deleting…" : "Delete conversation"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -1629,5 +1694,15 @@ function Logo() {
       width={104}
       height={104}
     />
+  );
+}
+
+function LoadingDots() {
+  return (
+    <span className="loading-dots" aria-hidden="true">
+      <i>●</i>
+      <i>●</i>
+      <i>●</i>
+    </span>
   );
 }

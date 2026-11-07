@@ -34,6 +34,8 @@ export async function POST(req: Request) {
     checkOrigin(req);
     const user = await requireUser();
     const c = CampaignSchema.parse(await req.json());
+    if (new Set(c.variants.map((v) => v.id)).size !== c.variants.length)
+      throw new Error("Every direction must have a unique ID");
     const r = await withAccount(user.id, () => startRun(c, user.id));
     return Response.json({ run_id: r.id, mock: r.mock, replay: r.replay });
   } catch (e) {

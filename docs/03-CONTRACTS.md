@@ -34,12 +34,14 @@ Codex turns these tables into JSON Schemas in `packages/contracts` (also used as
 | outdoor_regions | list of region | where outdoor placements are; empty if there is no outdoor channel. Set by the clarifier |
 | timing | string | season or moment, or none |
 | notes | string | |
-| variants | list of 1 to 3 Variant | |
+| variants | list of one or more Variant; no fixed planning count; model-call cap applies to each simulation | |
 | tools | object | risk, calendar, rewrite booleans |
 | depth | depth_tier | |
 | seed | integer | default 42 |
 
-**Variant:** id (A, B or C), label, headline, copy, visual_description, attachment_ids (list), ai_drafted (boolean).
+**7 Nov approved contract update:** the user explicitly approved overriding the Fabian-approval restriction for dynamic direction IDs and removal of the three-direction limit. Existing A/B/C documents remain valid.
+
+**Variant:** id (stable uppercase letters: A…Z, AA, AB, and so on), label, headline, copy, visual_description, attachment_ids (list), ai_drafted (boolean).
 
 ## 3. Clarifier output (Structured Outputs)
 | Field | Type | Notes |

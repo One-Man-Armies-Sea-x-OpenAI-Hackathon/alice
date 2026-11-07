@@ -3421,3 +3421,155 @@ textarea {
   min-height: 0;
   margin: 0;
 }
+
+/* Calm sidebar motion; content keeps a stable width during the slide. */
+.sidebar {
+  width: 248px;
+  overflow: hidden;
+  transition:
+    width 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s,
+    visibility 0s;
+}
+.sidebar > * {
+  min-width: 216px;
+  transition:
+    opacity 0.22s ease,
+    transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar.closed {
+  display: flex;
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-width: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    width 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.36s;
+}
+.sidebar.closed > * {
+  opacity: 0;
+  transform: translateX(-12px);
+}
+.loading-dots {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: 5px;
+}
+.loading-dots i {
+  font-style: normal;
+  font-size: 9px;
+  display: inline-block;
+  animation: loading-dot-bounce 1.2s ease-in-out infinite;
+}
+.loading-dots i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.loading-dots i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+@keyframes loading-dot-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+.auto-textarea {
+  resize: none;
+  max-height: 240px;
+}
+.variant-card .auto-textarea.creative-field {
+  height: auto;
+  max-height: 240px;
+  resize: none;
+}
+.draft-chat .auto-textarea.brief-input {
+  height: auto;
+  max-height: 240px;
+  resize: none;
+}
+.artifact-composer .auto-textarea {
+  max-height: 240px;
+  resize: none;
+}
+.budget-note {
+  font-size: 12px;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+.delete-conversation-dialog {
+  width: min(460px, 92vw);
+  margin: 0;
+}
+.delete-conversation-dialog h2 {
+  font-size: 25px;
+}
+.delete-conversation-dialog p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.delete-conversation-dialog .actions {
+  justify-content: flex-end;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .sidebar {
+    transform: translateX(0);
+    transition:
+      transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s;
+  }
+  .sidebar.closed {
+    width: 248px;
+    padding-left: 16px;
+    padding-right: 16px;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0.36s;
+  }
+  .auto-textarea {
+    font-size: 16px;
+  }
+  .delete-conversation-dialog .actions button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar > * {
+    transition: none !important;
+  }
+  .loading-dots i {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+.chat-row:focus-within .delete-chat,
+.chat-row.active .delete-chat {
+  display: block;
+}
+@media (hover: none) {
+  .delete-chat {
+    display: block;
+  }
+}
+.dashboard .segmented {
+  flex-wrap: wrap;
+  max-width: 100%;
+}

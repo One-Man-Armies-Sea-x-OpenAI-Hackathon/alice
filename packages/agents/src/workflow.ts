@@ -698,6 +698,10 @@ export async function startRun(c: Campaign, owner_id?: string) {
     throw new Error(
       "Estimated worst-case calls exceed MAX_CALLS_PER_RUN. Reduce depth or disable automatic rewrites.",
     );
+  if (c.variants.length > 3 && !(await core("/v1/health")).unlimited_directions)
+    throw new Error(
+      "The simulation service update is pending while existing runs finish. Your directions are saved; please retry shortly.",
+    );
   const run: Run = {
     id: randomUUID(),
     campaign: c,
