@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 for (const file of [resolve("../.env"), resolve(".env")])
   if (existsSync(file)) process.loadEnvFile(file);
+if (!process.env.DATABASE_URL?.trim()) delete process.env.DATABASE_URL;
 process.env.CORE_INTERNAL_TOKEN ||= randomBytes(32).toString("hex");
 process.env.CORE_PORT ||= "4000";
 process.env.PORT ||= "3000";
