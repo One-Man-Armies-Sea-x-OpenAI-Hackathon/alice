@@ -16,7 +16,7 @@ export const chartSchema = z.object({
     "backlash",
     "anger_reach",
   ]),
-  variant_id: z.enum(["A", "B", "C"]),
+  variant_id: VariantSchema.shape.id,
 });
 export const scenarioSchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -68,7 +68,7 @@ const answerSchema = z.object({
   chart: chartSchema.nullable(),
   scenario: scenarioSchema.nullable(),
   revised_notes: z.string().nullable(),
-  revised_variants: z.array(VariantSchema).min(1).max(3).nullable(),
+  revised_variants: z.array(VariantSchema).min(1).nullable(),
 });
 const pending = new Set<string>();
 export async function discuss(id: string, message: string) {
@@ -119,7 +119,14 @@ export async function discuss(id: string, message: string) {
                   kind: "bars",
                   dimension: /platform/i.test(message) ? "platform" : "age",
                   metric: /backlash/i.test(message) ? "backlash" : "score",
-                  variant_id: "A",
+                  variant_id:
+                    run.campaign.variants.find(
+                      (v) =>
+                        v.id ===
+                        message
+                          .match(/(?:direction|variant)\s+([a-z]+)/i)?.[1]
+                          ?.toUpperCase(),
+                    )?.id ?? run.campaign.variants[0].id,
                 }
               : null,
             scenario: timeline ? artifact.scenario : null,

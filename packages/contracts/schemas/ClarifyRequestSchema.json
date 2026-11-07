@@ -81,18 +81,13 @@
         },
         "variants": {
           "minItems": 1,
-          "maxItems": 3,
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
               "id": {
                 "type": "string",
-                "enum": [
-                  "A",
-                  "B",
-                  "C"
-                ]
+                "pattern": "^[A-Z]+$"
               },
               "label": {
                 "type": "string"

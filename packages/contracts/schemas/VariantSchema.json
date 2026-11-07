@@ -4,11 +4,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "enum": [
-        "A",
-        "B",
-        "C"
-      ]
+      "pattern": "^[A-Z]+$"
     },
     "label": {
       "type": "string"

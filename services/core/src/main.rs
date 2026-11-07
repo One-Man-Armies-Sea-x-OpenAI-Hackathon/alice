@@ -17,7 +17,7 @@ async fn main() {
             "/v1/health",
             get(move || {
                 let mode = mode.clone();
-                async move { Json(json!({"ok":true,"engine":"rust","storage":mode})) }
+                async move { Json(json!({"ok":true,"engine":"rust","storage":mode,"unlimited_directions":true})) }
             }),
         )
         .merge(api::router())

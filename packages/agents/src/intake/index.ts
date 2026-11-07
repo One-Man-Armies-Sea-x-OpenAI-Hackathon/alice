@@ -32,6 +32,8 @@ export async function clarify(
   answers: Record<string, string> = {},
 ) {
   const c = CampaignSchema.parse(raw);
+  if (new Set(c.variants.map((v) => v.id)).size !== c.variants.length)
+    throw new Error("Every direction must have a unique ID");
   const b = new Budget(16);
   const decision = await guardrail(c, b);
   const questions: {

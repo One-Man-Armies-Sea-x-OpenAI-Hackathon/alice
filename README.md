@@ -36,6 +36,7 @@ npm run smoke             # auth + artifact integration; requires a MOCK=1 stack
 node scripts/frontend-regressions.mjs
 node scripts/settings-reference-qa.mjs
 node scripts/background-campaign-qa.mjs
+node scripts/direction-polish-qa.mjs
 npm run prime             # optional: substantial real model usage at individual scale
 ```
 
@@ -62,3 +63,5 @@ Browser regression scripts default to an isolated mock web server on port 3001. 
 Runtime prompts and product specs are retained. Planning packs, Codex task prompts, generated agent guidance, secrets and build output are ignored.
 
 One chat represents one campaign. Its creative mode is Single direction or Multiple directions. Supporting message means the offer, benefit or call to action under a headline; Visual reference or scene can be described directly or supplied as a PNG/JPEG/WebP under 3 MB. Images are read once into a description instead of sent again to every person. Settings store per-account appearance, name, default depth/mode and tool preferences, and show real provider/storage status and usage limits.
+
+Direction planning has no fixed count limit and starts with two in Multiple directions. Simulation calls remain budget-capped. Text editors grow up to 240 px, deletion is confirmed, and motion respects reduced-motion settings.

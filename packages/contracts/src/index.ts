@@ -39,8 +39,11 @@ const s = z.string(),
   num = z.number(),
   strings = z.array(s),
   prob = z.number().min(0).max(1);
+// Dynamic direction IDs approved by the user on 2026-11-07.
+// Docs MCP: https://developers.openai.com/api/docs/guides/structured-outputs#supported-properties
+export const DirectionIdSchema = z.string().regex(/^[A-Z]+$/);
 export const VariantSchema = z.object({
-  id: z.enum(["A", "B", "C"]),
+  id: DirectionIdSchema,
   label: s,
   headline: s,
   copy: s,
@@ -60,7 +63,7 @@ export const CampaignSchema = z.object({
   outdoor_regions: z.array(z.enum(regions)),
   timing: s,
   notes: s,
-  variants: z.array(VariantSchema).min(1).max(3),
+  variants: z.array(VariantSchema).min(1),
   tools: z.object({
     risk: z.boolean(),
     calendar: z.boolean(),

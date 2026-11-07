@@ -1,9 +1,10 @@
 "use client";
+import AutoTextarea from "./AutoTextarea";
 import { readJson, requestTask } from "../lib/http";
 import { useEffect, useRef, useState } from "react";
 import type { Campaign, Result } from "@alice/contracts";
 import type { Artifact, Scenario } from "../../../packages/agents/src/artifact";
-import { pretty } from "../lib/display";
+import { pretty, directionColor } from "../lib/display";
 import { holywingsCase } from "../lib/history-case";
 const empty = (): Artifact => ({
   revision: 1,
@@ -436,7 +437,7 @@ export default function ArtifactWorkspace({
         ))}
       </div>
       <form onSubmit={ask} className="artifact-chat-form">
-        <textarea
+        <AutoTextarea
           aria-label="Ask Alice about these results"
           value={text}
           maxLength={6000}
@@ -547,7 +548,7 @@ function TimelinePlot({ points, metric }: { points: any[]; metric: string }) {
           <polyline
             key={id}
             fill="none"
-            stroke={`var(--variant-${id.toLowerCase()})`}
+            stroke={directionColor(id)}
             strokeWidth={3}
             points={points
               .filter((p) => p.variant_id === id)
@@ -573,10 +574,7 @@ function TimelinePlot({ points, metric }: { points: any[]; metric: string }) {
       </svg>
       <div className="legend">
         {ids.map((id) => (
-          <span
-            key={id}
-            style={{ color: `var(--variant-${id.toLowerCase()})` }}
-          >
+          <span key={id} style={{ color: directionColor(id) }}>
             ━ Variant {id}
           </span>
         ))}

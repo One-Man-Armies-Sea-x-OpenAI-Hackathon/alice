@@ -1,6 +1,8 @@
 "use client";
+import AutoTextarea from "./AutoTextarea";
 import type { Campaign } from "@alice/contracts";
 import VisualReference from "./VisualReference";
+import { nextDirectionId, directionColor } from "../lib/display";
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 export default function CampaignDirections({
   campaign: c,
@@ -65,8 +67,8 @@ export default function CampaignDirections({
                           ...c.variants,
                           {
                             ...clone(c.variants[0]),
-                            id: "B",
-                            label: "Direction B",
+                            id: nextDirectionId(c.variants.map((v) => v.id)),
+                            label: `Direction ${nextDirectionId(c.variants.map((v) => v.id))}`,
                             headline: "",
                             copy: "",
                             visual_description: "",
@@ -90,7 +92,7 @@ export default function CampaignDirections({
         </div>
         <p className="mode-description">
           {c.variants.length > 1
-            ? "Test 2–3 creative directions against the same people, then compare their response."
+            ? "Add as many creative directions as you need. Each simulation uses the same audience and a capped model-call budget."
             : "Explore how one campaign lands, where it loses interest, and what to improve."}
         </p>
         <div className="variant-tray">
@@ -99,7 +101,7 @@ export default function CampaignDirections({
               <div>
                 <span
                   style={{
-                    color: `var(--variant-${v.id.toLowerCase()})`,
+                    color: directionColor(v.id),
                   }}
                 >
                   ●
@@ -117,18 +119,13 @@ export default function CampaignDirections({
                   }
                 />
                 <b>{v.id}</b>
-                {c.variants.length > 2 && (
+                {c.variants.length > 1 && (
                   <button
                     aria-label={`Remove variant ${v.id}`}
                     onClick={() =>
                       onChange({
                         ...c,
-                        variants: c.variants
-                          .filter((_, j) => j !== i)
-                          .map((x, j) => ({
-                            ...x,
-                            id: ["A", "B", "C"][j] as any,
-                          })),
+                        variants: c.variants.filter((_, j) => j !== i),
                       })
                     }
                   >
@@ -140,7 +137,7 @@ export default function CampaignDirections({
                 Headline
                 <small>The main line that catches attention.</small>
               </label>
-              <textarea
+              <AutoTextarea
                 id={`headline-${v.id}`}
                 className="creative-field headline-field"
                 aria-label={`Variant ${v.id} headline`}
@@ -161,7 +158,7 @@ export default function CampaignDirections({
                   The offer, product benefit, or next action under the headline.
                 </small>
               </label>
-              <textarea
+              <AutoTextarea
                 id={`message-${v.id}`}
                 className="creative-field"
                 aria-label={`Variant ${v.id} copy`}
@@ -183,7 +180,7 @@ export default function CampaignDirections({
                   see.
                 </small>
               </label>
-              <textarea
+              <AutoTextarea
                 id={`visual-${v.id}`}
                 className="creative-field"
                 aria-label={`Variant ${v.id} visual idea`}
@@ -210,9 +207,10 @@ export default function CampaignDirections({
               />
             </div>
           ))}
-          {c.variants.length === 2 && (
+          {c.variants.length >= 2 && (
             <button
               className="add-variant"
+              aria-label="Add direction"
               onClick={() =>
                 onChange({
                   ...c,
@@ -220,8 +218,8 @@ export default function CampaignDirections({
                     ...c.variants,
                     {
                       ...clone(c.variants[0]),
-                      id: "C",
-                      label: "Direction C",
+                      id: nextDirectionId(c.variants.map((v) => v.id)),
+                      label: `Direction ${nextDirectionId(c.variants.map((v) => v.id))}`,
                       headline: "",
                       copy: "",
                       visual_description: "",
@@ -231,7 +229,7 @@ export default function CampaignDirections({
                 })
               }
             >
-              ＋<span>Add variant</span>
+              ＋<span>Add direction</span>
             </button>
           )}
         </div>

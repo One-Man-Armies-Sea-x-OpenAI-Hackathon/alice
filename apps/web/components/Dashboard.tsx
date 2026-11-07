@@ -7,14 +7,14 @@ import {
   type Reaction,
   type Audience,
 } from "@alice/contracts";
-import { dimensions, regions, pretty } from "../lib/display";
+import { dimensions, regions, pretty, directionColor } from "../lib/display";
 import Map from "./Map";
 import ArtifactWorkspace from "./ArtifactWorkspace";
 import dynamic from "next/dynamic";
 const AgentNetwork = dynamic(() => import("./AgentNetwork"));
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const score = (v: number) => v.toFixed(1);
-const vc = (s: string) => `var(--variant-${s.toLowerCase()})`;
+const vc = directionColor;
 export default function Dashboard({
   run,
   onReplay,
@@ -40,7 +40,7 @@ export default function Dashboard({
   onConversation?: (m: { role: string; text: string }[]) => void;
 }) {
   const [tab, setTab] = useState("Overview");
-  const [variant, setVariant] = useState("A");
+  const [variant, setVariant] = useState(run.campaign.variants[0].id);
   const [metric, setMetric] = useState("score");
   const [region, setRegion] = useState("");
   const [dimension, setDimension] =
@@ -62,7 +62,7 @@ export default function Dashboard({
     "Timeline",
     "Evidence",
     "Agent network",
-    single ? "Segments" : "A/B ranking",
+    single ? "Segments" : "Direction ranking",
     ...(c.tools.risk ? ["Risk flags"] : []),
     ...(c.tools.risk && c.tools.rewrite ? ["Fixes"] : []),
     "Agent feed",
@@ -444,7 +444,7 @@ export default function Dashboard({
           </div>
         </>
       )}
-      {(tab === "A/B ranking" || tab === "Segments") && (
+      {(tab === "Direction ranking" || tab === "Segments") && (
         <section className="panel">
           <div className="panel-heading">
             <div>

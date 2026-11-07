@@ -26,6 +26,22 @@ fn reactions(
         .collect()
 }
 #[test]
+fn arbitrary_direction_ids_keep_the_same_audience_and_deterministic_results() {
+    let a = build("quick", 42, json!({"individual_agents":true}));
+    let ids = ["A", "B", "D", "AA"];
+    let rs: Vec<_> = ids.iter().flat_map(|id| reactions(&a, id, 0.5, 0.02)).collect();
+    let outcomes = simulate(&a, &rs, &Constants::default());
+    assert_eq!(outcomes, simulate(&a, &rs, &Constants::default()));
+    assert_eq!(outcomes.len(), 4);
+    let first = &outcomes[0];
+    for outcome in &outcomes {
+        assert!(ids.contains(&outcome.variant_id.as_str()));
+        assert_eq!(outcome.exposed, first.exposed);
+        assert_eq!(outcome.sentiment, first.sentiment);
+    }
+    assert_eq!(aggregate(&a, &outcomes)["per_variant"].as_array().unwrap().len(), 4);
+}
+#[test]
 fn audience_determinism_sums_and_coverage() {
     for depth in ["quick", "standard"] {
         let a = build(depth, 42, json!({}));

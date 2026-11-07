@@ -34,23 +34,20 @@ fn get_a(e: &Engine, v: &Value) -> Result<Audience, Err> {
 fn reactions(v: &Value, a: &Audience) -> Result<Vec<Reaction>, Err> {
     let rs: Vec<Reaction> =
         serde_json::from_value(v.clone()).map_err(|_| bad("Invalid reactions"))?;
-    if rs.is_empty() || rs.len() > a.archetypes.len() * 3 {
+    if rs.is_empty() {
         return Err(bad("Invalid reaction count"));
     }
-    let variants: std::collections::BTreeSet<_> = rs.iter().map(|r| r.variant_id.clone()).collect();
-    for id in variants {
-        for arc in &a.archetypes {
-            if rs
-                .iter()
-                .filter(|r| r.variant_id == id && r.archetype_id == arc["id"])
-                .count()
-                != 1
-            {
-                return Err(bad(
-                    "Every archetype needs exactly one reaction per variant",
-                ));
-            }
+    let known: std::collections::BTreeSet<_> = a.archetypes.iter()
+        .filter_map(|arc| arc["id"].as_str()).collect();
+    let mut supplied: BTreeMap<&str, std::collections::BTreeSet<&str>> = BTreeMap::new();
+    for r in &rs {
+        if r.variant_id.is_empty() || !known.contains(r.archetype_id.as_str())
+            || !supplied.entry(&r.variant_id).or_default().insert(&r.archetype_id) {
+            return Err(bad("Every archetype needs exactly one reaction per variant"));
         }
+    }
+    if supplied.values().any(|ids| ids.len() != known.len()) {
+        return Err(bad("Every archetype needs exactly one reaction per variant"));
     }
     for r in &rs {
         if !(-1.0..=1.0).contains(&r.sentiment)
