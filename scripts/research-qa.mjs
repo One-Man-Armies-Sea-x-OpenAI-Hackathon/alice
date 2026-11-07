@@ -128,6 +128,11 @@ try {
   });
   const p = await context.newPage();
   const errors = [];
+  const historicalRequests = [];
+  p.on("request", (request) => {
+    if (request.url().includes("/api/evidence/"))
+      historicalRequests.push(request.url());
+  });
   p.on("pageerror", (e) => errors.push(e.message));
   await p.goto(base);
   await p.getByRole("button", { name: /Tools/ }).click();
@@ -231,6 +236,37 @@ try {
       { exact: true },
     )
     .waitFor();
+  assert.doesNotMatch(
+    await p.locator("main").innerText(),
+    /Holywings|Historical qualitative|Qualitative model check|Prepare a pre-launch assessment/i,
+  );
+  assert.deepEqual(
+    historicalRequests,
+    [],
+    "Evidence must not fetch a global historical evaluation",
+  );
+  assert.equal((await api.get("/api/evidence/holywings")).status(), 404);
+  // Older runs with no research have an honest empty state, never a fallback case.
+  await p.route(`**/api/runs/${run.id}`, async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    delete data.research;
+    await route.fulfill({ json: data });
+  });
+  await p.reload();
+  await p.getByRole("button", { name: chat.title, exact: true }).click();
+  await p.getByRole("button", { name: "Evidence", exact: true }).click();
+  await p
+    .getByRole("heading", {
+      name: "No external research saved for this campaign.",
+      exact: true,
+    })
+    .waitFor();
+  assert.doesNotMatch(
+    await p.locator("main").innerText(),
+    /Holywings|Historical qualitative|Qualitative model check/i,
+  );
+  assert.deepEqual(historicalRequests, []);
   assert.deepEqual(errors, []);
   console.log(
     "Research QA passed: offline labels, zero research calls in MOCK, private snapshots, follow-up reuse, persisted run/history, default preference, tool toggle, citations, dashboard and phone layout.",

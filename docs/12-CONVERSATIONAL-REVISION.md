@@ -32,7 +32,7 @@ Calendar time is a distinct Rust scenario calculation. Users set a start date, d
 
 Risk analysis also sees low-attention and uninterested comments, not only high-backlash comments. Repeated feedback about vague benefits or overly general messaging can trigger a weak-value-proposition fix. Rewrites must name an existing, defensible benefit, never invent product claims, and are re-tested with new individual reactions. Missing product facts require clarification.
 
-The Holywings June 2022 case has a sourced qualitative comparison panel. Religious objections, a company apology, and government licensing action are distinguished. The stated basis for revoking 12 outlet permits was licensing violations; no sole-cause claim or financial-loss figure is inferred. A live check of 20 individual gpt-5.6-luna judgments identified religious sensitivity in 18. This is not a representative public-reaction percentage or a blind held-out validation; the model may know the historical event. The source-backed outcomes remain separate from persona prompts.
+The Holywings June 2022 case is retained only as an offline evaluation fixture. Its former dashboard comparison panel and product endpoint have been removed. Religious objections, a company apology, and government licensing action are distinguished. The stated basis for revoking 12 outlet permits was licensing violations; no sole-cause claim or financial-loss figure is inferred. A live check of 20 individual gpt-5.6-luna judgments identified religious sensitivity in 18. This is not a representative public-reaction percentage or a blind held-out validation; the model may know the historical event. The source-backed outcomes remain separate from persona prompts.
 
 ## Performance and validation
 
@@ -79,3 +79,5 @@ For two directions, Quick now requests 48 initial reactions and Standard 96, com
 Validation: 32 unit tests and browser/API checks cover research persistence, a 24-reaction/500-agent run, a 120-reaction/five-direction run, map inspection, history, account isolation, mobile layout and call-budget protection. Tests use mocked judgments with the real Rust engine; live validation is recorded separately.
 
 Live validation completed a two-direction Quick run in 191 seconds, with 500 agents, 24 archetypes, 48 initial reactions and 84 total model attempts including robustness and orchestration. No cached reactions were used. Displayed time estimates now use that observed runtime, and call estimates include retry allowance. This is one measurement, not a speed guarantee.
+
+Evidence is campaign-scoped: the historical qualitative card, evaluation fetch and assessment shortcut are removed. Runs without external research show an explicit empty state. Dashboard discussion receives only its own campaign, results, saved research and conversation; shared limitations contain no named historical campaign.
