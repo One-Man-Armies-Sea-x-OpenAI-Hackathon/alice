@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { VariantSchema } from "@alice/contracts";
+import { VariantSchema, type Campaign, type Result } from "@alice/contracts";
+import type { ExternalContext } from "./research";
 import { randomUUID } from "node:crypto";
 import { getRun } from "./workflow";
 import { structured, Budget, storeGet, storePut } from "./foundation/index";
@@ -70,6 +71,25 @@ const answerSchema = z.object({
   revised_notes: z.string().nullable(),
   revised_variants: z.array(VariantSchema).min(1).nullable(),
 });
+export function dashboardContext(
+  run: { campaign: Campaign; result: Result; research?: ExternalContext },
+  artifact: Artifact,
+  message: string,
+) {
+  return {
+    question: message,
+    conversation: artifact.messages.slice(-12),
+    campaign: run.campaign,
+    metrics: run.result.per_variant,
+    ranking: run.result.ranking,
+    risks: run.result.risk_flags,
+    robustness: run.result.overall.robustness,
+    artifact: { charts: artifact.charts, scenario: artifact.scenario },
+    external_context: run.research ?? null,
+    limitations:
+      "Synthetic simulation judgments are not representative public polling. Real-world outcomes and financial impacts require supporting evidence from this campaign.",
+  };
+}
 const pending = new Set<string>();
 export async function discuss(id: string, message: string) {
   if (!message.trim() || message.length > 6000)
@@ -81,23 +101,16 @@ export async function discuss(id: string, message: string) {
     if (!run?.result || run.status !== "done")
       throw new Error("A completed simulation is required");
     let artifact = await readArtifact(id);
-    const input = {
-      question: message,
-      conversation: artifact.messages.slice(-12),
-      campaign: run.campaign,
-      metrics: run.result.per_variant,
-      ranking: run.result.ranking,
-      risks: run.result.risk_flags,
-      robustness: run.result.overall.robustness,
-      artifact: { charts: artifact.charts, scenario: artifact.scenario },
-      limitations:
-        "Synthetic individual judgments are not representative public polling. No actual audience percentages or financial losses are established for Holywings.",
-    };
+    const input = dashboardContext(
+      { campaign: run.campaign, result: run.result, research: run.research },
+      artifact,
+      message,
+    );
     const b = new Budget(3);
     const response = await structured(
       "dashboard_dialogue",
       answerSchema,
-      `You are Alice, continuing a campaign analysis conversation. Use only the supplied simulation metrics and conversation. Clearly distinguish model judgments, hypothetical calendar scenarios and observed evidence. Never invent numbers, quotations, legal outcomes, real public opinion, or claim causal validation. A visualization may only use the allowed metrics and dimensions. For a timeline use action scenario and explicit assumptions. For a changed campaign or new facts that need different reactions, return revised_notes containing a complete revised campaign brief and revised_variants containing complete changed variants with their original IDs and explain that a new simulation is required; never pretend existing numbers were recomputed. For an answer set other fields null. For a chart set a stable id and the title in English. Respond in English.`,
+      `You are Alice, continuing a campaign analysis conversation. Use only the supplied campaign, simulation metrics, campaign research and conversation. Keep the answer scoped to this campaign unless the user explicitly requests a comparison. Prior assistant replies are not independent evidence; do not carry unrelated historical cases into this campaign’s conclusions. Clearly distinguish model judgments, hypothetical calendar scenarios and observed evidence. Never invent numbers, quotations, legal outcomes, real public opinion, or claim causal validation. A visualization may only use the allowed metrics and dimensions. For a timeline use action scenario and explicit assumptions. For a changed campaign or new facts that need different reactions, return revised_notes containing a complete revised campaign brief and revised_variants containing complete changed variants with their original IDs and explain that a new simulation is required; never pretend existing numbers were recomputed. For an answer set other fields null. For a chart set a stable id and the title in English. Respond in English.`,
       input,
       b,
       {

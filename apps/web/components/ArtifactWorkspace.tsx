@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import type { Campaign, Result } from "@alice/contracts";
 import type { Artifact, Scenario } from "../../../packages/agents/src/artifact";
 import { pretty, directionColor } from "../lib/display";
-import { holywingsCase } from "../lib/history-case";
 const empty = (): Artifact => ({
   revision: 1,
   messages: [],
@@ -25,7 +24,7 @@ export default function ArtifactWorkspace({
   onConversation,
 }: {
   run: { id: string; campaign: Campaign; result: Result };
-  mode?: "chat" | "timeline" | "evidence";
+  mode?: "chat" | "timeline";
   onDraft: (c: Campaign) => void;
   onConversation?: (messages: { role: string; text: string }[]) => void;
 }) {
@@ -38,14 +37,6 @@ export default function ArtifactWorkspace({
   const [metric, setMetric] = useState("reach");
   const [assumptions, setAssumptions] = useState<Scenario>(empty().scenario);
   const [ready, setReady] = useState(false);
-  const [historicalCheck, setHistoricalCheck] = useState<any>(null);
-  useEffect(() => {
-    if (mode !== "evidence") return;
-    fetch("/api/evidence/holywings")
-      .then((r) => (r.ok ? readJson(r) : null))
-      .then(setHistoricalCheck)
-      .catch(() => {});
-  }, [mode]);
   const thread = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setReady(false);
@@ -130,103 +121,6 @@ export default function ArtifactWorkspace({
       setBusy(false);
     }
   }
-  if (mode === "evidence")
-    return (
-      <section className="panel evidence-case">
-        <span className="eyebrow">{holywingsCase.status}</span>
-        <h2>{holywingsCase.title}</h2>
-        <p>
-          Compare a pre-launch simulation with the documented record. These
-          sources establish events and objections, not a representative
-          sentiment percentage.
-        </p>
-        {holywingsCase.facts.map((f) => (
-          <article key={f.date}>
-            <time>{f.date}</time>
-            <h3>{f.title}</h3>
-            <p>{f.text}</p>
-            <a href={f.url} target="_blank" rel="noreferrer">
-              {f.source} ↗
-            </a>
-          </article>
-        ))}
-        {historicalCheck && (
-          <section className="added-chart">
-            <h3>Qualitative model check</h3>
-            <p>
-              {historicalCheck.recognized} of {historicalCheck.sample_size}{" "}
-              separate {historicalCheck.model} judgments identified religious
-              sensitivity.
-            </p>
-            <small>{historicalCheck.interpretation}</small>
-          </section>
-        )}
-        {/holywings/i.test(run.campaign.brand) ? (
-          <section className="added-chart">
-            <h3>This run compared with the record</h3>
-            <p>
-              {run.result.risk_flags.some((f) => f.category === "sara_religion")
-                ? "✓ The analyst identified a religious-sensitivity issue."
-                : "! The analyst did not identify a religious-sensitivity issue. Treat this mismatch as a limitation."}
-            </p>
-            <p>
-              {run.result.risk_flags.some((f) => f.severity === "high")
-                ? `Recommendation gate: ${run.result.overall.recommended === null ? "launch blocked pending review" : "an alternative remains eligible"}.`
-                : "No high-severity flag surfaced in this run."}
-            </p>
-          </section>
-        ) : (
-          <p className="muted">
-            This result is for another campaign. The Holywings record is shown
-            as a reference case.
-          </p>
-        )}
-        <h3>What we can check</h3>
-        {holywingsCase.checks.map((t) => (
-          <p key={t}>↳ {t}</p>
-        ))}
-        <h3>What the record does not establish</h3>
-        {holywingsCase.notEstablished.map((t) => (
-          <p className="muted" key={t}>
-            — {t}
-          </p>
-        ))}
-        <p className="footnote">
-          Historical outcomes are held apart from persona reaction prompts. The
-          foundation model may still know the event; this is not a blind
-          held-out validation.
-        </p>
-        <button
-          onClick={() =>
-            onDraft({
-              ...run.campaign,
-              id: crypto.randomUUID(),
-              brand: "Holywings",
-              notes: holywingsCase.brief,
-              timing: "22 June 2022",
-              channels: ["instagram"],
-              location: "Indonesia",
-              target_regions: [],
-              outdoor_regions: [],
-              variants: [
-                {
-                  id: "A",
-                  label: "Original promotion",
-                  headline: "Promo untuk pemilik nama Muhammad dan Maria",
-                  copy: "Minuman beralkohol gratis untuk pelanggan dewasa dengan nama Muhammad atau Maria.",
-                  visual_description:
-                    "Instagram promotion with names alongside alcohol.",
-                  attachment_ids: [],
-                  ai_drafted: false,
-                },
-              ],
-            })
-          }
-        >
-          Prepare a pre-launch assessment
-        </button>
-      </section>
-    );
   if (mode === "timeline") {
     const points = scenario?.points ?? [];
     const dates = points.map((p: any) => ({

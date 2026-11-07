@@ -124,19 +124,22 @@ export default function Dashboard({
           </button>
         ))}
       </nav>
-      {tab === "Evidence" && run.research && (
-        <ResearchCard context={run.research} expanded />
-      )}
-      {(tab === "Timeline" || tab === "Evidence") && (
+      {tab === "Evidence" &&
+        (run.research ? (
+          <ResearchCard context={run.research} expanded />
+        ) : (
+          <section className="panel">
+            <h2>No external research saved for this campaign.</h2>
+            <p className="muted">
+              Enable External research in Tools when planning a new campaign to
+              save dated sources with its results.
+            </p>
+          </section>
+        ))}
+      {tab === "Timeline" && (
         <ArtifactWorkspace
           run={run}
-          mode={
-            tab === "Timeline"
-              ? "timeline"
-              : tab === "Evidence"
-                ? "evidence"
-                : "chat"
-          }
+          mode="timeline"
           onDraft={onDraft}
           onConversation={onConversation}
         />

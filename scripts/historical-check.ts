@@ -4,7 +4,7 @@ for (const f of ["../.env", ".env"]) if (existsSync(f)) process.loadEnvFile(f);
 const { structured, Budget, core, prompt, models } =
   await import("../packages/agents/src/foundation/index");
 const { ReactionSchema } = await import("../packages/contracts/src/index");
-const { holywingsCase } = await import("../apps/web/lib/history-case");
+const { holywingsCase } = await import("../evals/holywings-case");
 const campaign = {
   id: "holywings-qualitative-check",
   campaign_type: "business",
