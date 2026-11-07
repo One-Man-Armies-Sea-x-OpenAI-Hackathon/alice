@@ -25,6 +25,7 @@ export type User = {
     theme: "dark" | "light";
     depth: "quick" | "standard";
     mode: "single" | "multiple";
+    external_research?: boolean;
     tools: { risk: boolean; calendar: boolean; rewrite: boolean };
   };
 };

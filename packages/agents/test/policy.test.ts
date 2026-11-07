@@ -112,3 +112,24 @@ test("selling-point findings require repeated low-interest comments", async () =
     0,
   );
 });
+
+test("network and SDK output failures are not mislabeled as model-access failures", () => {
+  for (const name of [
+    "APIConnectionError",
+    "APIConnectionTimeoutError",
+    "APITimeoutError",
+  ])
+    assert.equal(classifyError({ name }), "transient");
+  assert.equal(
+    classifyError({ cause: { code: "UND_ERR_CONNECT_TIMEOUT" } }),
+    "transient",
+  );
+  for (const name of [
+    "ZodError",
+    "SyntaxError",
+    "ModelBehaviorError",
+    "MaxTurnsExceededError",
+  ])
+    assert.equal(classifyError({ name }), "output");
+  assert.equal(classifyError({ status: 400 }), "fatal");
+});

@@ -3573,3 +3573,56 @@ textarea {
   flex-wrap: wrap;
   max-width: 100%;
 }
+
+.research-card {
+  width: 100%;
+  min-width: 0;
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.research-card > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+.research-card > summary::-webkit-details-marker {
+  display: none;
+}
+.research-card small {
+  display: block;
+  color: var(--muted);
+}
+.research-body {
+  padding: 0 20px 20px;
+  overflow-wrap: anywhere;
+}
+.research-body section {
+  margin: 22px 0;
+}
+.research-body h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.research-body ul {
+  padding-left: 20px;
+}
+.research-body li {
+  margin: 12px 0;
+}
+.research-body p {
+  margin: 6px 0;
+}
+.research-body a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.research-body summary {
+  cursor: pointer;
+}

@@ -25,6 +25,7 @@ export default function WorkspaceSettings({
       "dark",
     depth: user.preferences?.depth || "quick",
     mode: user.preferences?.mode || "multiple",
+    external_research: user.preferences?.external_research ?? true,
     tools: user.preferences?.tools || {
       risk: true,
       calendar: true,
@@ -172,6 +173,21 @@ export default function WorkspaceSettings({
                   </div>
                   <span className="tag">Always on</span>
                 </div>
+                <label className="settings-row">
+                  <span>
+                    External research
+                    <small>
+                      Use dated public sources before planning a new campaign.
+                    </small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={pref.external_research}
+                    onChange={(e) =>
+                      setPref({ ...pref, external_research: e.target.checked })
+                    }
+                  />
+                </label>
                 {(["risk", "calendar", "rewrite"] as const).map((key) => (
                   <label className="settings-row" key={key}>
                     <span>
@@ -229,6 +245,22 @@ export default function WorkspaceSettings({
                   <small>
                     Private conversations, sessions, results and artifact
                     revisions
+                  </small>
+                </div>
+                <div className="settings-service">
+                  <strong>Public web research</strong>
+                  <span className="tag">
+                    {health?.mock
+                      ? "Mock mode"
+                      : health?.pool?.total
+                        ? "Available"
+                        : "Needs provider key"}
+                  </span>
+                  <small>
+                    OpenAI web search · dated sources, near-term events,
+                    regulations and market context. Up to 2 search tool uses per
+                    research request, plus model usage. Private business-data
+                    MCP connections are not configured.
                   </small>
                 </div>
                 <div className="settings-service">

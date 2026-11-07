@@ -11,6 +11,7 @@ const schema = z.object({
   theme: z.enum(["dark", "light"]),
   depth: z.enum(["quick", "standard"]),
   mode: z.enum(["single", "multiple"]),
+  external_research: z.boolean().default(true),
   tools: z.object({
     risk: z.boolean(),
     calendar: z.boolean(),

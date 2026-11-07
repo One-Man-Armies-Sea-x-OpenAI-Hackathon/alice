@@ -5,3 +5,5 @@ export * from "./workflow";
 export * from "./artifact";
 
 export * from "./tasks";
+
+export * from "./research";
