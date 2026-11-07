@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "dimension": {
+      "type": "string",
+      "enum": [
+        "region",
+        "age",
+        "platform",
+        "religion",
+        "tier"
+      ]
+    },
+    "group": {
+      "type": "string"
+    },
+    "winner": {
+      "type": "string"
+    },
+    "order": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "margin": {
+      "type": "number"
+    },
+    "why": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "dimension",
+    "group",
+    "winner",
+    "order",
+    "margin",
+    "why"
+  ],
+  "additionalProperties": false
+}

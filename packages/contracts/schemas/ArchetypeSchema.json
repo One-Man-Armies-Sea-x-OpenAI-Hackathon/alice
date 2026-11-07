@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "segment": {
+      "type": "object",
+      "properties": {
+        "region": {
+          "type": "string",
+          "enum": [
+            "jabodetabek",
+            "jawa_other",
+            "sumatra",
+            "kalimantan",
+            "sulawesi",
+            "bali_nusa",
+            "maluku_papua"
+          ]
+        },
+        "city_tier": {
+          "type": "string",
+          "enum": [
+            "metro",
+            "tier2",
+            "tier3"
+          ]
+        },
+        "age_band": {
+          "type": "string",
+          "enum": [
+            "18-24",
+            "25-34",
+            "35-44",
+            "45+"
+          ]
+        },
+        "religion": {
+          "type": "string",
+          "enum": [
+            "islam",
+            "kristen",
+            "katolik",
+            "hindu",
+            "buddha",
+            "other"
+          ]
+        },
+        "income_band": {
+          "type": "string",
+          "enum": [
+            "low",
+            "mid",
+            "high"
+          ]
+        },
+        "platform": {
+          "type": "string",
+          "enum": [
+            "tiktok",
+            "instagram",
+            "youtube",
+            "facebook",
+            "x",
+            "whatsapp"
+          ]
+        },
+        "language_style": {
+          "type": "string",
+          "enum": [
+            "slang",
+            "casual",
+            "formal"
+          ]
+        },
+        "religiosity_band": {
+          "type": "string",
+          "enum": [
+            "low",
+            "mid",
+            "high"
+          ]
+        }
+      },
+      "required": [
+        "region",
+        "city_tier",
+        "age_band",
+        "religion",
+        "income_band",
+        "platform",
+        "language_style",
+        "religiosity_band"
+      ],
+      "additionalProperties": false
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "persona_count": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "blurb": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "segment",
+    "weight",
+    "persona_count",
+    "blurb",
+    "label"
+  ],
+  "additionalProperties": false
+}

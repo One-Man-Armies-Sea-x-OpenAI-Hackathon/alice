@@ -1,0 +1,383 @@
+import OpenAI from "openai";
+import {
+  Agent,
+  Runner,
+  OpenAIProvider,
+  setTracingExportApiKey,
+  withTrace,
+} from "@openai/agents";
+import { z } from "zod";
+import pLimit from "p-limit";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { tiers, type Campaign } from "@alice/contracts";
+export const root = () => {
+  let p = process.cwd();
+  return p.endsWith("/apps/web") ? resolve(p, "../..") : p;
+};
+export const mockMode = () => ["1", "true"].includes(process.env.MOCK ?? "");
+// Docs MCP checked 2026-11-07: https://developers.openai.com/api/docs/models/gpt-4.1-mini
+// https://developers.openai.com/api/docs/models/gpt-4.1 — configurable model roles; all variants use reaction.
+export const models = () => ({
+  reaction: process.env.REACTION_MODEL || "gpt-4.1-mini",
+  analysis: process.env.ANALYSIS_MODEL || "gpt-4.1",
+});
+export const coreBase = () =>
+  process.env.CORE_BASE_URL || "http://127.0.0.1:4000";
+export async function core<T = any>(
+  path: string,
+  body?: unknown,
+  method?: string,
+): Promise<T> {
+  const r = await fetch(coreBase() + path, {
+    method: method ?? (body ? "POST" : "GET"),
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(120000),
+    cache: "no-store",
+  });
+  if (!r.ok) throw new Error(`Core ${path}: ${r.status} ${await r.text()}`);
+  return r.json();
+}
+export const storeGet = async (table: string, id: string) => {
+  try {
+    return await core(`/v1/store/${table}/${id}`);
+  } catch (e) {
+    if (String(e).includes("404")) return null;
+    throw e;
+  }
+};
+export const storePut = (table: string, id: string, value: unknown) =>
+  core(`/v1/store/${table}/${id}`, value, "PUT");
+export function prompt(name: string) {
+  return readFileSync(resolve(root(), `prompts/runtime/${name}.md`), "utf8");
+}
+export function catalog() {
+  return readFileSync(resolve(root(), "docs/07-RISK-AND-CULTURE.md"), "utf8");
+}
+export class BudgetError extends Error {}
+export class Budget {
+  calls = 0;
+  cache_hits = 0;
+  failures = 0;
+  tokens = 0;
+  estimated_usd = 0;
+  cap: number;
+  shouldStop?: () => boolean;
+  constructor(cap = Number(process.env.MAX_CALLS_PER_RUN || 640)) {
+    this.cap = cap;
+  }
+  take() {
+    if (this.shouldStop?.()) throw new BudgetError("Run cancelled.");
+    if (this.calls >= this.cap)
+      throw new BudgetError(
+        `Run reached its hard cap of ${this.cap} model attempts. Try Quick depth or fewer tools.`,
+      );
+    this.calls++;
+  }
+}
+export function estimate(c: Campaign) {
+  const a = tiers[c.depth].archetypes;
+  const reaction = a * (c.variants.length + (c.variants.length > 1 ? 1 : 0));
+  const fixes =
+    c.tools.risk && c.tools.rewrite
+      ? 2 * (a + 2) * Math.min(3, c.variants.length)
+      : 0;
+  const calls = reaction + fixes + 8;
+  return {
+    calls,
+    reaction_calls: reaction,
+    fix_reserve: fixes,
+    cap: Number(process.env.MAX_CALLS_PER_RUN || 640),
+    seconds: Math.ceil(
+      (reaction / Number(process.env.LLM_CONCURRENCY || 8)) * 2.5 + 20,
+    ),
+    estimated_usd: Number((calls * 0.004).toFixed(2)),
+    cost_note:
+      "Planning estimate; actual token usage is tracked. Model prices and latency need calibration.",
+    personas: tiers[c.depth].personas,
+    archetypes: a,
+  };
+}
+const keys = () => {
+  const raw = process.env.OPENAI_API_KEYS || process.env.OPENAI_API_KEY || "";
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed))
+      return parsed.filter((x) => typeof x === "string");
+  } catch {}
+  return raw.split(/[\s,;]+/).filter(Boolean);
+};
+let keyIndex = 0;
+const spent = new Map<number, number>();
+export const poolStatus = () => ({
+  position: keyIndex + 1,
+  total: keys().length,
+  estimated_usd: [...spent.values()].reduce((a, b) => a + b, 0),
+  skipped_positions: [...skipped].map((i) => i + 1),
+  last_key: keyIndex === keys().length - 1,
+});
+export function classifyError(e: unknown) {
+  const err = e as {
+    status?: number;
+    code?: string;
+    error?: { code?: string };
+  };
+  const code = err.code || err.error?.code;
+  return code === "credit_balance_exhausted"
+    ? "credit"
+    : err.status === 429
+      ? "rate"
+      : err.status === 401 || err.status === 403
+        ? "auth"
+        : (err.status ?? 0) >= 500
+          ? "transient"
+          : "fatal";
+}
+const limiter = pLimit(Math.max(1, Number(process.env.LLM_CONCURRENCY || 8)));
+function canonical(v: any): any {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v && typeof v === "object")
+    return Object.fromEntries(
+      Object.keys(v)
+        .sort()
+        .map((k) => [k, canonical(v[k])]),
+    );
+  return v;
+}
+// Exact error distinctions: https://developers.openai.com/api/docs/guides/error-codes
+// JSON schema: https://developers.openai.com/api/docs/guides/structured-outputs
+// Agents outputType/Runner/provider: https://developers.openai.com/api/docs/guides/agents/define-agents
+export async function structured<T>(
+  name: string,
+  schema: z.ZodType<T>,
+  instructions: string,
+  input: unknown,
+  budget: Budget,
+  options: {
+    role?: "reaction" | "analysis";
+    sample?: number;
+    agent?: boolean;
+    mock: () => T;
+    guardrail?: () => Promise<{ decision: string; reason: string }>;
+  },
+): Promise<T> {
+  const model = models()[options.role ?? "analysis"];
+  const json = z.toJSONSchema(schema, { target: "draft-7" });
+  delete json.$schema;
+  const hash = createHash("sha256")
+    .update(
+      JSON.stringify(
+        canonical({
+          version: 1,
+          name,
+          model,
+          json,
+          instructions,
+          input,
+          sample: options.sample ?? 1,
+          mock: mockMode(),
+        }),
+      ),
+    )
+    .digest("hex");
+  const cached = await storeGet("llm_cache", hash);
+  if (cached) {
+    budget.cache_hits++;
+    return schema.parse(cached.response);
+  }
+  return limiter(async () => {
+    let data: T;
+    let usage = { input_tokens: 0, output_tokens: 0 };
+    if (mockMode()) {
+      budget.take();
+      data = schema.parse(options.mock());
+    } else {
+      const all = keys();
+      if (!all.length)
+        throw new Error(
+          "No server-side OpenAI key configured. Use MOCK=1 for offline development.",
+        );
+      let done = false;
+      let attempt = 0;
+      data = undefined as T;
+      while (!done) {
+        const pos = keyIndex;
+        if (pos >= all.length)
+          throw new Error(
+            "All key credits are exhausted. Open a cached demo replay.",
+          );
+        budget.take();
+        const client = new OpenAI({
+          apiKey: all[pos],
+          maxRetries: 0,
+          timeout: 60000,
+        });
+        try {
+          setTracingExportApiKey(all[pos]);
+          if (options.agent) {
+            const provider = new OpenAIProvider({ openAIClient: client });
+            const runner = new Runner({
+              modelProvider: provider,
+              traceIncludeSensitiveData: false,
+            });
+            const agent = new Agent({
+              name,
+              instructions,
+              model,
+              inputGuardrails: options.guardrail
+                ? [
+                    {
+                      name: "Campaign safety",
+                      runInParallel: false,
+                      execute: async () => {
+                        const decision = await options.guardrail!();
+                        return {
+                          outputInfo: decision,
+                          tripwireTriggered: decision.decision === "blocked",
+                        };
+                      },
+                    },
+                  ]
+                : [],
+              outputType: {
+                type: "json_schema",
+                name,
+                schema: json as any,
+                strict: true,
+              },
+            });
+            const result = await runner.run(agent, JSON.stringify(input), {
+              maxTurns: 1,
+            });
+            if (!result.finalOutput)
+              throw new Error("Agent returned no structured result");
+            data = schema.parse(result.finalOutput);
+            const u = result.state.usage;
+            usage = {
+              input_tokens: u.inputTokens,
+              output_tokens: u.outputTokens,
+            };
+          } else {
+            const response = await withTrace(name, () =>
+              client.responses.create({
+                model,
+                instructions,
+                input: JSON.stringify(input),
+                text: {
+                  format: {
+                    type: "json_schema",
+                    name,
+                    schema: json as any,
+                    strict: true,
+                  },
+                },
+                max_output_tokens: 16000,
+                store: false,
+              }),
+            );
+            if (response.status !== "completed")
+              throw new Error("Model output was incomplete");
+            if (
+              response.output.some(
+                (x) =>
+                  x.type === "message" &&
+                  x.content.some((y) => y.type === "refusal"),
+              )
+            )
+              throw new Error("Model refused this request");
+            data = schema.parse(JSON.parse(response.output_text));
+            usage = {
+              input_tokens: response.usage?.input_tokens ?? 0,
+              output_tokens: response.usage?.output_tokens ?? 0,
+            };
+          }
+          done = true;
+          const rates = options.role === "reaction" ? [0.4, 1.6] : [2, 8];
+          const cost =
+            (usage.input_tokens * rates[0] + usage.output_tokens * rates[1]) /
+            1e6;
+          budget.estimated_usd += cost;
+          spent.set(pos, (spent.get(pos) || 0) + cost);
+          budget.tokens += usage.input_tokens + usage.output_tokens;
+        } catch (e) {
+          const kind = classifyError(e);
+          if (kind === "credit") {
+            if (keyIndex === pos) {
+              keyIndex++;
+              while (skipped.has(keyIndex)) keyIndex++;
+            }
+            continue;
+          }
+          if ((kind === "rate" || kind === "transient") && attempt++ < 3) {
+            await new Promise((r) =>
+              setTimeout(
+                r,
+                Math.min(15000, 1000 * 2 ** attempt) + Math.random() * 400,
+              ),
+            );
+            continue;
+          }
+          const err = e as any;
+          throw new Error(
+            `OpenAI ${name} failed (key position ${pos + 1}, ${err.status ?? "validation"}, ${err.code ?? kind}). ${kind === "auth" ? "Check server key access." : kind === "fatal" ? "Check model access and request configuration." : "Retry later."}`,
+          );
+        }
+      }
+    }
+    await storePut("llm_cache", hash, {
+      response: data!,
+      model,
+      tokens: usage,
+      created: new Date().toISOString(),
+      mock: mockMode(),
+    });
+    return data!;
+  });
+}
+let preflightPromise: Promise<void> | undefined;
+const skipped = new Set<number>();
+export function preflight() {
+  if (mockMode()) return Promise.resolve();
+  return (preflightPromise ??= checkKeys().catch((error) => {
+    preflightPromise = undefined;
+    throw error;
+  }));
+}
+async function checkKeys() {
+  const all = keys();
+  if (!all.length) throw new Error("No OpenAI key configured.");
+  for (let i = 0; i < all.length; i++) {
+    for (const model of new Set(Object.values(models()))) {
+      try {
+        const client = new OpenAI({
+          apiKey: all[i],
+          maxRetries: 0,
+          timeout: 20000,
+        });
+        await client.responses.create({
+          model,
+          input: "Reply OK.",
+          max_output_tokens: 16,
+          store: false,
+        });
+      } catch (e) {
+        const kind = classifyError(e);
+        if (kind === "auth" || kind === "credit" || (e as any).status === 404) {
+          skipped.add(i);
+          break;
+        }
+        throw new Error(
+          `Key position ${i + 1} preflight failed. Check rate limits or model access.`,
+        );
+      }
+    }
+  }
+  while (skipped.has(keyIndex)) keyIndex++;
+  if (keyIndex >= all.length)
+    throw new Error(
+      "No key can access both configured models. Open a cached demo.",
+    );
+  setTracingExportApiKey(all[keyIndex]);
+}

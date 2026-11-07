@@ -1,0 +1,155 @@
+import type { Campaign, Variant } from "./index";
+const v = (
+  id: "A" | "B" | "C",
+  label: string,
+  headline: string,
+  copy: string,
+  visual_description: string,
+): Variant => ({
+  id,
+  label,
+  headline,
+  copy,
+  visual_description,
+  attachment_ids: [],
+  ai_drafted: false,
+});
+const base = {
+  campaign_type: "business" as const,
+  objective: "launch",
+  channels: ["instagram", "tiktok"] as Campaign["channels"],
+  location: "Nationwide online",
+  target_regions: [],
+  outdoor_regions: [],
+  timing: "None",
+  tools: { risk: true, calendar: true, rewrite: true },
+  depth: "quick" as const,
+  seed: 42,
+};
+export const demos: Record<string, Campaign> = {
+  "langkah-run": {
+    ...base,
+    id: "langkah-run",
+    brand: "Langkah Run",
+    product: "Locally made running shoes",
+    timing: "Independence Day, 17 August",
+    notes:
+      "Bandung-made running shoes for Indonesian runners. Instagram, TikTok and billboards in Jakarta; nationwide online. Independence Day launch.",
+    channels: ["instagram", "tiktok", "outdoor"],
+    outdoor_regions: ["jabodetabek"],
+    variants: [
+      v(
+        "A",
+        "Freedom run",
+        "Merdeka itu lari ke arah yang kamu mau.",
+        "Langkah Run, dibuat di Bandung untuk semua pelari.",
+        "Runner at sunrise; red and white accents in clothing.",
+      ),
+      v(
+        "B",
+        "Local pride",
+        "Dibuat di Bandung, buat 270 juta langkah.",
+        "Karya lokal untuk langkah Indonesia.",
+        "Factory workers smiling with finished shoes.",
+      ),
+      v(
+        "C",
+        "Flag print",
+        "Injak garis finis, pakai Merah Putih.",
+        "Edisi 17 Agustus dengan motif bendera di sol dan sisi sepatu.",
+        "National flag printed across the shoe sole.",
+      ),
+    ],
+  },
+  "kopi-senja": {
+    ...base,
+    id: "kopi-senja",
+    brand: "Kopi Senja",
+    product: "Ready-to-drink coffee, Rp12,000",
+    channels: ["tiktok"],
+    location: "",
+    timing: "",
+    notes:
+      "Ready-to-drink coffee launching on TikTok, Rp12,000 per can, aimed at young office workers. Which direction lands best?",
+    variants: [
+      v(
+        "A",
+        "Playful slang",
+        "Gajian? Kopi dulu, baru mikir cicilan.",
+        "Kopi Senja, manisnya pas, harganya aman. Gajian harus dirayain.",
+        "Young office worker laughing at a phone, can of coffee.",
+      ),
+      v(
+        "B",
+        "Warm family",
+        "Sore di teras, ngobrol sama keluarga.",
+        "Kopi Senja menemani obrolan hangat di rumah.",
+        "Family on a porch at sunset.",
+      ),
+      v(
+        "C",
+        "Comparative jab",
+        "Lebih enak dari kopi kekinian yang itu-itu aja.",
+        "Udah capek sama kopi mahal yang rasanya sama? Coba Kopi Senja.",
+        "Two cups side by side, one crossed out.",
+      ),
+    ],
+  },
+  ciliwung: {
+    ...base,
+    id: "ciliwung",
+    brand: "Gerakan Ciliwung Bersih",
+    campaign_type: "activist",
+    product: "River clean-up campaign",
+    objective: "cause",
+    channels: ["outdoor", "instagram"],
+    location: "Bundaran HI, Jakarta",
+    target_regions: ["jabodetabek"],
+    outdoor_regions: ["jabodetabek"],
+    timing: "",
+    notes:
+      "Surprise activist banner at Bundaran HI before dawn, no prior announcement. Instagram and outdoor. Understand reactions.",
+    variants: [
+      v(
+        "A",
+        "A cleaner river",
+        "Ciliwung bukan tempat sampah.",
+        "Bersama kita jaga sungai, mulai dari langkah kecil.",
+        "A huge banner over the central fountain at Bundaran HI.",
+      ),
+    ],
+  },
+  "tiket-ceria": {
+    ...base,
+    id: "tiket-ceria",
+    brand: "Tiket Ceria",
+    product: "Year-end travel",
+    channels: ["instagram", "facebook"],
+    timing: "Christmas and New Year",
+    notes:
+      "Year-end travel promotion on Instagram and Facebook, nationwide online. Compare three directions.",
+    variants: [
+      v(
+        "A",
+        "Homecoming",
+        "Pulang kampung Natal, tiket aman.",
+        "Pesan lebih awal, harga tetap ramah.",
+        "Family arriving at a village home at night.",
+      ),
+      v(
+        "B",
+        "Holiday deal",
+        "Liburan akhir tahun ke Bali, diskon 30%.",
+        "Hotel dan tiket pesawat dalam satu paket.",
+        "Bali beach at sunset.",
+      ),
+      v(
+        "C",
+        "Santa hats",
+        "Semua tim kami ikut meriahkan Natal.",
+        "Seluruh karyawan, termasuk yang berhijab, memakai topi Santa untuk promo akhir tahun.",
+        "Entire staff in Santa hats, including hijab-wearing staff.",
+      ),
+    ],
+  },
+};

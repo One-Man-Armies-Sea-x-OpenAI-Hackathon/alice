@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "flag_id": {
+      "type": "string"
+    },
+    "variant_id": {
+      "type": "string"
+    },
+    "original": {
+      "type": "object",
+      "properties": {
+        "headline": {
+          "type": "string"
+        },
+        "copy": {
+          "type": "string"
+        },
+        "visual": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "headline",
+        "copy",
+        "visual"
+      ],
+      "additionalProperties": false
+    },
+    "rewrite": {
+      "type": "object",
+      "properties": {
+        "headline": {
+          "type": "string"
+        },
+        "copy": {
+          "type": "string"
+        },
+        "visual": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "headline",
+        "copy",
+        "visual"
+      ],
+      "additionalProperties": false
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "self_check_new_risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "cleared",
+        "needs_human"
+      ]
+    },
+    "rerun": {
+      "type": "object",
+      "properties": {
+        "before": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "reach": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "engagement": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "sentiment": {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 1
+            },
+            "backlash": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "anger_reach": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "n",
+            "reach",
+            "engagement",
+            "sentiment",
+            "backlash",
+            "anger_reach",
+            "score"
+          ],
+          "additionalProperties": false
+        },
+        "after": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "reach": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "engagement": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "sentiment": {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 1
+            },
+            "backlash": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "anger_reach": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "n",
+            "reach",
+            "engagement",
+            "sentiment",
+            "backlash",
+            "anger_reach",
+            "score"
+          ],
+          "additionalProperties": false
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "rescored",
+            "neutralized"
+          ]
+        },
+        "archetypes_rescored": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "control_archetypes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "before",
+        "after",
+        "method",
+        "archetypes_rescored",
+        "control_archetypes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "flag_id",
+    "variant_id",
+    "original",
+    "rewrite",
+    "changes",
+    "self_check_new_risks",
+    "rounds",
+    "status"
+  ],
+  "additionalProperties": false
+}

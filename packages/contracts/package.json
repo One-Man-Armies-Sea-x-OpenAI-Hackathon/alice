@@ -1,0 +1,1 @@
+{"name":"@alice/contracts","version":"0.1.0","type":"module","main":"./src/index.ts","scripts":{"generate":"tsx src/generate.ts"},"dependencies":{"zod":"^4.0.0","json-schema-to-typescript":"^15.0.0"}}

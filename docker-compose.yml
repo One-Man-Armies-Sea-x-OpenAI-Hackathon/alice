@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: alice
+      POSTGRES_PASSWORD: alice_local
+      POSTGRES_DB: alice
+    ports: ["5433:5432"]
+    volumes: ["alice_db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alice"]
+      interval: 2s
+      retries: 20
+volumes:
+  alice_db:

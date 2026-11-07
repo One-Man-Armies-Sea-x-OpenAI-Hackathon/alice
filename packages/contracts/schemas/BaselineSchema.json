@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "winner": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "segment_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "baseline_only": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_supported",
+              "not_tested"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "winner",
+    "summary",
+    "risks",
+    "segment_notes",
+    "missed",
+    "baseline_only"
+  ],
+  "additionalProperties": false
+}

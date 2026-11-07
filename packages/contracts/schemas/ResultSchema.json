@@ -1,0 +1,1047 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "campaign_id": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "depth": {
+      "type": "string",
+      "enum": [
+        "quick",
+        "standard"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "running",
+        "done",
+        "failed"
+      ]
+    },
+    "personas_total": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "archetypes_total": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "llm_calls": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "cache_hits": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "failures": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "per_variant": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "variant_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "overall": {
+            "type": "object",
+            "properties": {
+              "n": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "reach": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "engagement": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "sentiment": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "backlash": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "anger_reach": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "n",
+              "reach",
+              "engagement",
+              "sentiment",
+              "backlash",
+              "anger_reach",
+              "score"
+            ],
+            "additionalProperties": false
+          },
+          "by_dimension": {
+            "type": "object",
+            "properties": {
+              "region": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "n": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "engagement": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "sentiment": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "backlash": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "anger_reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "share": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "n",
+                    "reach",
+                    "engagement",
+                    "sentiment",
+                    "backlash",
+                    "anger_reach",
+                    "score",
+                    "group",
+                    "share"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "age": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "n": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "engagement": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "sentiment": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "backlash": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "anger_reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "share": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "n",
+                    "reach",
+                    "engagement",
+                    "sentiment",
+                    "backlash",
+                    "anger_reach",
+                    "score",
+                    "group",
+                    "share"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "platform": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "n": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "engagement": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "sentiment": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "backlash": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "anger_reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "share": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "n",
+                    "reach",
+                    "engagement",
+                    "sentiment",
+                    "backlash",
+                    "anger_reach",
+                    "score",
+                    "group",
+                    "share"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "religion": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "n": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "engagement": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "sentiment": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "backlash": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "anger_reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "share": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "n",
+                    "reach",
+                    "engagement",
+                    "sentiment",
+                    "backlash",
+                    "anger_reach",
+                    "score",
+                    "group",
+                    "share"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "tier": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "n": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "engagement": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "sentiment": {
+                      "type": "number",
+                      "minimum": -1,
+                      "maximum": 1
+                    },
+                    "backlash": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "anger_reach": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "share": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "n",
+                    "reach",
+                    "engagement",
+                    "sentiment",
+                    "backlash",
+                    "anger_reach",
+                    "score",
+                    "group",
+                    "share"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "region",
+              "age",
+              "platform",
+              "religion",
+              "tier"
+            ],
+            "additionalProperties": false
+          },
+          "trait": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "variant_id",
+          "label",
+          "overall",
+          "by_dimension",
+          "trait"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ranking": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "region",
+              "age",
+              "platform",
+              "religion",
+              "tier"
+            ]
+          },
+          "group": {
+            "type": "string"
+          },
+          "winner": {
+            "type": "string"
+          },
+          "order": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "margin": {
+            "type": "number"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dimension",
+          "group",
+          "winner",
+          "order",
+          "margin",
+          "why"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "overall": {
+      "type": "object",
+      "properties": {
+        "winner": {
+          "type": "string"
+        },
+        "margin": {
+          "type": "number"
+        },
+        "is_tie": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "High",
+            "Medium",
+            "Low"
+          ]
+        },
+        "regions_won": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "recommended": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recommendation_note": {
+          "type": "string"
+        },
+        "robustness": {
+          "type": "object",
+          "properties": {
+            "noise_floor": {
+              "type": "number"
+            },
+            "checks_won": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "checks_total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "audience_won": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "audience_total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "constants_won": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "constants_total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "noise_floor",
+            "checks_won",
+            "checks_total",
+            "audience_won",
+            "audience_total",
+            "constants_won",
+            "constants_total"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "winner",
+        "margin",
+        "is_tie",
+        "confidence",
+        "regions_won",
+        "recommended",
+        "recommendation_note",
+        "robustness"
+      ],
+      "additionalProperties": false
+    },
+    "baseline": {
+      "type": "object",
+      "properties": {
+        "winner": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "segment_notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "baseline_only": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "not_supported",
+                  "not_tested"
+                ]
+              }
+            },
+            "required": [
+              "text",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "winner",
+        "summary",
+        "risks",
+        "segment_notes",
+        "missed",
+        "baseline_only"
+      ],
+      "additionalProperties": false
+    },
+    "risk_flags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "none",
+              "sara_religion",
+              "sara_ethnicity",
+              "sara_class",
+              "local_norms",
+              "language_tone",
+              "political",
+              "copycat_legal",
+              "other"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "backlash": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "key",
+                "backlash"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "map_region": {
+            "type": "string",
+            "enum": [
+              "jabodetabek",
+              "jawa_other",
+              "sumatra",
+              "kalimantan",
+              "sulawesi",
+              "bali_nusa",
+              "maluku_papua"
+            ]
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "comment": {
+                "type": "string"
+              },
+              "persona_tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "comment",
+              "persona_tags"
+            ],
+            "additionalProperties": false
+          },
+          "suggested_fix_direction": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "variant_id",
+          "severity",
+          "category",
+          "title",
+          "explanation",
+          "segments",
+          "map_region",
+          "evidence",
+          "suggested_fix_direction",
+          "rule_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "fixes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "flag_id": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": "string"
+          },
+          "original": {
+            "type": "object",
+            "properties": {
+              "headline": {
+                "type": "string"
+              },
+              "copy": {
+                "type": "string"
+              },
+              "visual": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "headline",
+              "copy",
+              "visual"
+            ],
+            "additionalProperties": false
+          },
+          "rewrite": {
+            "type": "object",
+            "properties": {
+              "headline": {
+                "type": "string"
+              },
+              "copy": {
+                "type": "string"
+              },
+              "visual": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "headline",
+              "copy",
+              "visual"
+            ],
+            "additionalProperties": false
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "self_check_new_risks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rounds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cleared",
+              "needs_human"
+            ]
+          },
+          "rerun": {
+            "type": "object",
+            "properties": {
+              "before": {
+                "type": "object",
+                "properties": {
+                  "n": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "reach": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "engagement": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "sentiment": {
+                    "type": "number",
+                    "minimum": -1,
+                    "maximum": 1
+                  },
+                  "backlash": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "anger_reach": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "score": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "n",
+                  "reach",
+                  "engagement",
+                  "sentiment",
+                  "backlash",
+                  "anger_reach",
+                  "score"
+                ],
+                "additionalProperties": false
+              },
+              "after": {
+                "type": "object",
+                "properties": {
+                  "n": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "reach": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "engagement": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "sentiment": {
+                    "type": "number",
+                    "minimum": -1,
+                    "maximum": 1
+                  },
+                  "backlash": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "anger_reach": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "score": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "n",
+                  "reach",
+                  "engagement",
+                  "sentiment",
+                  "backlash",
+                  "anger_reach",
+                  "score"
+                ],
+                "additionalProperties": false
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "rescored",
+                  "neutralized"
+                ]
+              },
+              "archetypes_rescored": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "control_archetypes": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "before",
+              "after",
+              "method",
+              "archetypes_rescored",
+              "control_archetypes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "flag_id",
+          "variant_id",
+          "original",
+          "rewrite",
+          "changes",
+          "self_check_new_risks",
+          "rounds",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "insights": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "translations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "english": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "english"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "run_id",
+    "campaign_id",
+    "seed",
+    "depth",
+    "status",
+    "personas_total",
+    "archetypes_total",
+    "llm_calls",
+    "cache_hits",
+    "failures",
+    "per_variant",
+    "ranking",
+    "overall",
+    "baseline",
+    "risk_flags",
+    "fixes",
+    "insights",
+    "next_steps",
+    "translations"
+  ],
+  "additionalProperties": false
+}

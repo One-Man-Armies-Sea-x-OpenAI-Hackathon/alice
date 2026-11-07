@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "audience_id": {
+      "type": "string"
+    },
+    "variant_id": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "rescored",
+        "neutralized"
+      ]
+    },
+    "reactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "archetype_id": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": "string"
+          },
+          "attention": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "sentiment": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "share_likelihood": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "click_likelihood": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "backlash_risk": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "backlash_category": {
+            "type": "string",
+            "enum": [
+              "none",
+              "sara_religion",
+              "sara_ethnicity",
+              "sara_class",
+              "local_norms",
+              "language_tone",
+              "political",
+              "copycat_legal",
+              "other"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "sample_comment": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "archetype_id",
+          "variant_id",
+          "attention",
+          "sentiment",
+          "share_likelihood",
+          "click_likelihood",
+          "backlash_risk",
+          "backlash_category",
+          "reason",
+          "sample_comment"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "audience_id",
+    "variant_id",
+    "method",
+    "reactions"
+  ],
+  "additionalProperties": false
+}

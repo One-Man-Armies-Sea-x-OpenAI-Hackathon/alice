@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "blurbs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "archetype_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "blurb": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "archetype_id",
+          "label",
+          "blurb"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "blurbs"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "label": {
+      "type": "string"
+    },
+    "headline": {
+      "type": "string"
+    },
+    "copy": {
+      "type": "string"
+    },
+    "visual_description": {
+      "type": "string"
+    },
+    "attachment_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ai_drafted": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "label",
+    "headline",
+    "copy",
+    "visual_description",
+    "attachment_ids",
+    "ai_drafted"
+  ],
+  "additionalProperties": false
+}

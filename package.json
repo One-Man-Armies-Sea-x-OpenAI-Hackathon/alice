@@ -1,0 +1,24 @@
+{
+  "name": "alice",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run generate -w @alice/contracts && npm run build -w @alice/web && cargo build --release --manifest-path services/core/Cargo.toml",
+    "test": "tsx --test packages/agents/test/*.test.ts && cargo test --manifest-path services/core/Cargo.toml",
+    "typecheck": "tsc --noEmit -p apps/web/tsconfig.json",
+    "prime": "tsx scripts/prime.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^24.0.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "type": "module"
+}

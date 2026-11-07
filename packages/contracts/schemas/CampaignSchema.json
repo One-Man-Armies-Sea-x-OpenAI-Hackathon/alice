@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "campaign_type": {
+      "type": "string",
+      "enum": [
+        "business",
+        "activist",
+        "political"
+      ]
+    },
+    "brand": {
+      "type": "string"
+    },
+    "product": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "tiktok",
+          "instagram",
+          "youtube",
+          "facebook",
+          "x",
+          "whatsapp",
+          "outdoor"
+        ]
+      }
+    },
+    "location": {
+      "type": "string"
+    },
+    "target_regions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "jabodetabek",
+          "jawa_other",
+          "sumatra",
+          "kalimantan",
+          "sulawesi",
+          "bali_nusa",
+          "maluku_papua"
+        ]
+      }
+    },
+    "outdoor_regions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "jabodetabek",
+          "jawa_other",
+          "sumatra",
+          "kalimantan",
+          "sulawesi",
+          "bali_nusa",
+          "maluku_papua"
+        ]
+      }
+    },
+    "timing": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "variants": {
+      "minItems": 1,
+      "maxItems": 3,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "headline": {
+            "type": "string"
+          },
+          "copy": {
+            "type": "string"
+          },
+          "visual_description": {
+            "type": "string"
+          },
+          "attachment_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ai_drafted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "headline",
+          "copy",
+          "visual_description",
+          "attachment_ids",
+          "ai_drafted"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tools": {
+      "type": "object",
+      "properties": {
+        "risk": {
+          "type": "boolean"
+        },
+        "calendar": {
+          "type": "boolean"
+        },
+        "rewrite": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "risk",
+        "calendar",
+        "rewrite"
+      ],
+      "additionalProperties": false
+    },
+    "depth": {
+      "type": "string",
+      "enum": [
+        "quick",
+        "standard"
+      ]
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    }
+  },
+  "required": [
+    "id",
+    "campaign_type",
+    "brand",
+    "product",
+    "objective",
+    "channels",
+    "location",
+    "target_regions",
+    "outdoor_regions",
+    "timing",
+    "notes",
+    "variants",
+    "tools",
+    "depth",
+    "seed"
+  ],
+  "additionalProperties": false
+}

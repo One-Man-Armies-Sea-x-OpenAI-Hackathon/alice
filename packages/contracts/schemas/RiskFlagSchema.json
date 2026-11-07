@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "variant_id": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "none",
+        "sara_religion",
+        "sara_ethnicity",
+        "sara_class",
+        "local_norms",
+        "language_tone",
+        "political",
+        "copycat_legal",
+        "other"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "explanation": {
+      "type": "string"
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "backlash": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "key",
+          "backlash"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "map_region": {
+      "type": "string",
+      "enum": [
+        "jabodetabek",
+        "jawa_other",
+        "sumatra",
+        "kalimantan",
+        "sulawesi",
+        "bali_nusa",
+        "maluku_papua"
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "comment": {
+          "type": "string"
+        },
+        "persona_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "comment",
+        "persona_tags"
+      ],
+      "additionalProperties": false
+    },
+    "suggested_fix_direction": {
+      "type": "string"
+    },
+    "rule_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "variant_id",
+    "severity",
+    "category",
+    "title",
+    "explanation",
+    "segments",
+    "map_region",
+    "evidence",
+    "suggested_fix_direction",
+    "rule_id"
+  ],
+  "additionalProperties": false
+}

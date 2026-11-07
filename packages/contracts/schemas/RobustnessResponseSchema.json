@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "robustness": {
+      "type": "object",
+      "properties": {
+        "noise_floor": {
+          "type": "number"
+        },
+        "checks_won": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "checks_total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "audience_won": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "audience_total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "constants_won": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "constants_total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "noise_floor",
+        "checks_won",
+        "checks_total",
+        "audience_won",
+        "audience_total",
+        "constants_won",
+        "constants_total"
+      ],
+      "additionalProperties": false
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "is_tie": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "robustness",
+    "confidence",
+    "is_tie"
+  ],
+  "additionalProperties": false
+}

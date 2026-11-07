@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "mock": {
+      "type": "boolean"
+    },
+    "replay": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "run_id",
+    "mock",
+    "replay"
+  ],
+  "additionalProperties": false
+}

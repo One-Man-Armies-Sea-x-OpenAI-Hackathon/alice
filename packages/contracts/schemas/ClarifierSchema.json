@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "ready": {
+      "type": "boolean"
+    },
+    "questions": {
+      "maxItems": 3,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allows_free_text": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "options",
+          "allows_free_text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "extracted": {
+      "type": "object",
+      "properties": {
+        "brand": {
+          "type": "string"
+        },
+        "product": {
+          "type": "string"
+        },
+        "campaign_type": {
+          "type": "string",
+          "enum": [
+            "business",
+            "activist",
+            "political"
+          ]
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "tiktok",
+              "instagram",
+              "youtube",
+              "facebook",
+              "x",
+              "whatsapp",
+              "outdoor"
+            ]
+          }
+        },
+        "location": {
+          "type": "string"
+        },
+        "target_regions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "jabodetabek",
+              "jawa_other",
+              "sumatra",
+              "kalimantan",
+              "sulawesi",
+              "bali_nusa",
+              "maluku_papua"
+            ]
+          }
+        },
+        "outdoor_regions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "jabodetabek",
+              "jawa_other",
+              "sumatra",
+              "kalimantan",
+              "sulawesi",
+              "bali_nusa",
+              "maluku_papua"
+            ]
+          }
+        },
+        "timing": {
+          "type": "string"
+        },
+        "variants": {
+          "minItems": 1,
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "enum": [
+                  "A",
+                  "B",
+                  "C"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "headline": {
+                "type": "string"
+              },
+              "copy": {
+                "type": "string"
+              },
+              "visual_description": {
+                "type": "string"
+              },
+              "attachment_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ai_drafted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "headline",
+              "copy",
+              "visual_description",
+              "attachment_ids",
+              "ai_drafted"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "detected_missing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "brand",
+        "product",
+        "campaign_type",
+        "channels",
+        "location",
+        "target_regions",
+        "outdoor_regions",
+        "timing",
+        "variants",
+        "detected_missing"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "ready",
+    "questions",
+    "extracted"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "audience_id": {
+      "type": "string"
+    },
+    "outcomes_handle": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "audience_id"
+  ],
+  "additionalProperties": false
+}
