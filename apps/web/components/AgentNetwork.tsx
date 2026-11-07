@@ -3,7 +3,7 @@ import { readJson, requestTask } from "../lib/http";
 import { useEffect, useRef, useState } from "react";
 import type { Audience, Campaign, Result, Reaction } from "@alice/contracts";
 import land from "../public/land.json";
-import { pretty } from "../lib/display";
+import { pretty, regions } from "../lib/display";
 export default function AgentNetwork({
   run,
 }: {
@@ -292,18 +292,29 @@ export default function AgentNetwork({
               Agent {selected! + 1} ·{" "}
               {person.persona_count === 1
                 ? "One individual personality"
-                : "Earlier grouped profile"}
+                : `Shared archetype · ${person.persona_count} agents`}
             </span>
-            <h2>{pretty(person.segment.region)}</h2>
+            <h2>
+              {pretty(
+                regions[a.personas.region[selected!]] ?? person.segment.region,
+              )}
+            </h2>
+            <small>
+              Agent coordinates: {a.personas.latitude[selected!].toFixed(2)},{" "}
+              {a.personas.longitude[selected!].toFixed(2)}
+            </small>
+            <p className="muted">
+              Model profile: {pretty(person.segment.region)} · {person.label}
+            </p>
             <div className="tags">
               <span>{person.segment.age_band}</span>
               <span>{person.segment.platform}</span>
               <span>{pretty(person.segment.city_tier)}</span>
             </div>
-            <h3>Personality provided to the model</h3>
+            <h3>Profile provided to the model</h3>
             <p>
               {person.blurb ||
-                "This earlier recording did not save individual personality detail."}
+                `This archetype represents ${person.persona_count} synthetic agents using the profile above. Its model reaction is shared; each mapped agent retains separate engine state and geographic data.`}
             </p>
             <h3>Campaign input</h3>
             <p>
@@ -373,8 +384,9 @@ export default function AgentNetwork({
           <>
             <h2>Select a person.</h2>
             <p className="muted">
-              The inspector shows their supplied personality, returned metrics
-              and synthetic comment, plus the engine’s recorded outcome.
+              The inspector shows the supplied profile, shared archetype
+              reaction and synthetic comment, plus this agent’s own engine
+              outcome.
             </p>
           </>
         )}

@@ -93,7 +93,7 @@ export default function Dashboard({
             <span>
               {run.audience?.archetypes.every((a) => a.persona_count === 1)
                 ? "Individual-personality simulation"
-                : "Earlier grouped simulation — rerun for individual agents"}
+                : `${r.archetypes_total} shared archetypes`}
             </span>
             <span>Seed {c.seed}</span>
             {run.mock && <span className="warn">Mock data</span>}

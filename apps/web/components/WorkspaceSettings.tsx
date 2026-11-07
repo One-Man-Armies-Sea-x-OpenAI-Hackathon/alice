@@ -149,10 +149,10 @@ export default function WorkspaceSettings({
                     }
                   >
                     <option value="quick">
-                      Quick · 500 individual personalities
+                      Quick · 500 agents · 24 archetypes
                     </option>
                     <option value="standard">
-                      Standard · 1,500 individual personalities
+                      Standard · 1,500 agents · 48 archetypes
                     </option>
                   </select>
                 </label>
@@ -168,8 +168,11 @@ export default function WorkspaceSettings({
                 </label>
                 <div className="settings-row">
                   <div>
-                    <strong>Individual-personality simulation</strong>
-                    <small>One model reaction per person and direction.</small>
+                    <strong>Grouped archetype reactions</strong>
+                    <small>
+                      One model call per archetype and direction, shared across
+                      its agents.
+                    </small>
                   </div>
                   <span className="tag">Always on</span>
                 </div>

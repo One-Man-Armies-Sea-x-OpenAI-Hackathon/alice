@@ -10,7 +10,7 @@ import {
   type Reaction,
   type Fix,
 } from "@alice/contracts";
-import { pretty, tiers, plannedCalls } from "../lib/display";
+import { pretty, tiers, plannedCalls, plannedSeconds } from "../lib/display";
 import { readJson, requestTask, pollTask } from "../lib/http";
 import CampaignDirections from "./CampaignDirections";
 import ResearchCard from "./ResearchCard";
@@ -1258,11 +1258,16 @@ export default function Alice({
                           </button>
                         </div>
                         <p>
-                          {
-                            audience.archetypes[
-                              audience.personas.archetype_index[liveSelected]
-                            ]?.blurb
-                          }
+                          {(() => {
+                            const profile =
+                              audience.archetypes[
+                                audience.personas.archetype_index[liveSelected]
+                              ];
+                            return (
+                              profile?.blurb ||
+                              `Shares a model reaction with ${profile?.persona_count ?? 0} agents in archetype ${profile?.id}. The engine computes this agent’s own exposure and diffusion.`
+                            );
+                          })()}
                         </p>
                         {(() => {
                           const e = reactionEvents.find(
@@ -1291,7 +1296,7 @@ export default function Alice({
                             </>
                           ) : (
                             <p className="muted">
-                              Awaiting this person’s model reaction.
+                              Awaiting this agent’s shared archetype reaction.
                             </p>
                           );
                         })()}
@@ -1315,7 +1320,7 @@ export default function Alice({
                         </strong>
                       </div>
                       <div>
-                        <span>Individual personalities</span>
+                        <span>Model reaction profiles</span>
                         <strong>{audience?.archetypes.length ?? "—"}</strong>
                       </div>
                       <div>
@@ -1660,19 +1665,17 @@ export default function Alice({
                         {Object.entries(tiers).map(([id, t]) => (
                           <option key={id} value={id}>
                             {pretty(id)} · {t.personas.toLocaleString()} agents
+                            · {t.archetypes} archetypes
                           </option>
                         ))}
                       </select>
                     </div>
                     <div className="actions">
                       <span className="estimate">
-                        Up to {calls} calls · ~
-                        {Math.ceil(
-                          ((archetypes * c.variants.length) / 8) * 2.5 + 20,
-                        )}
-                        s{" "}
+                        ~{calls} calls · ~
+                        {plannedSeconds(c, health?.limits?.concurrency ?? 8)}s{" "}
                         <small>
-                          ~${(calls * 0.001).toFixed(2)} planning estimate
+                          ~${(calls * 0.004).toFixed(2)} planning estimate
                         </small>
                       </span>
                       <button

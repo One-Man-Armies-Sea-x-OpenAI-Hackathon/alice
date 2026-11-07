@@ -89,24 +89,26 @@ export class Budget {
   }
 }
 export function estimate(c: Campaign) {
-  const a = tiers[c.depth].personas;
+  const a = tiers[c.depth].archetypes;
   const reaction = a * (c.variants.length + (c.variants.length > 1 ? 1 : 0));
   const fixes =
     c.tools.risk && c.tools.rewrite
       ? 2 * (a + 2) * Math.min(3, c.variants.length)
       : 0;
-  const calls = reaction + fixes + 8;
+  // Planning allowance for bounded retries; the Budget cap remains the hard limit.
+  const calls = Math.ceil((reaction + fixes + 8) * 1.2);
   return {
     calls,
     reaction_calls: reaction,
     fix_reserve: fixes,
     cap: Number(process.env.MAX_CALLS_PER_RUN || 16000),
     seconds: Math.ceil(
-      (reaction / Number(process.env.LLM_CONCURRENCY || 8)) * 2.5 + 20,
+      ((reaction + fixes) / Number(process.env.LLM_CONCURRENCY || 8)) * 10 +
+        100,
     ),
     estimated_usd: Number((calls * 0.004).toFixed(2)),
     cost_note:
-      "Planning estimate; actual token usage is tracked. Model prices and latency need calibration.",
+      "Planning estimate with a 20% retry allowance. Latency calibrated against a 191-second Quick two-direction run on 2026-11-07; actual time, fixes and retries vary. Startup key probes and brief research are separate.",
     personas: tiers[c.depth].personas,
     archetypes: a,
   };

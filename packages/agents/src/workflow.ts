@@ -108,7 +108,9 @@ async function react(
       structured(
         "reaction",
         ReactionSchema,
-        "You are ONE individual synthetic person, not a demographic average. Use your unique seeded personality in the blurb. Do not infer personality from religion or ethnicity. Different people in the same segment may disagree.\n" +
+        (a.blurb.startsWith("Individual synthetic agent ")
+          ? "You are one individual synthetic person. Use the supplied seeded personality; do not infer personality from religion or ethnicity.\n"
+          : "You supply one representative synthetic reaction for an audience archetype shared by multiple agents. This is not an independent judgment from each person. Use the supplied profile without stereotyping; individuals may disagree.\n") +
           prompt("archetype-reaction") +
           "\n" +
           prompt("fewshot-bahasa"),
@@ -351,7 +353,7 @@ async function perform(run: Run) {
     });
     stage(run, "Building the audience", 1);
     run.audience = await core<Audience>("/v1/audience", {
-      campaign: { ...c, individual_agents: true },
+      campaign: { ...c, individual_agents: false },
       depth: c.depth,
       seed: c.seed,
     });

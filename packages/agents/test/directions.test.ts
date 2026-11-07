@@ -7,6 +7,7 @@ import {
   nextDirectionId,
   directionColor,
   plannedCalls,
+  plannedSeconds,
 } from "../../../apps/web/lib/display";
 import { estimate } from "../src/foundation/index";
 import { startRun } from "../src/workflow";
@@ -37,6 +38,10 @@ test("campaign contracts accept many directions and frontend estimates match the
     const c = CampaignSchema.parse(campaign(n));
     assert.equal(c.variants.length, n);
     assert.equal(plannedCalls(c), estimate(c).calls);
+    assert.equal(
+      plannedSeconds(c, Number(process.env.LLM_CONCURRENCY || 8)),
+      estimate(c).seconds,
+    );
   }
   for (const id of ["", "a", "direction-1", "A1"])
     assert.equal(
@@ -50,7 +55,7 @@ test("unbounded planning never bypasses the model-call cap", async () => {
   process.env.MAX_CALLS_PER_RUN = "16000";
   process.env.DEMO_CACHE = "0";
   try {
-    const c = campaign(60);
+    const c = campaign(700);
     assert.ok(estimate(c).calls > estimate(c).cap);
     await assert.rejects(startRun(c), /exceed/i);
   } finally {
