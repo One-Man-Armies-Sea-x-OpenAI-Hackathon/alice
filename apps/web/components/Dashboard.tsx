@@ -9,6 +9,8 @@ import {
 } from "@alice/contracts";
 import { dimensions, regions, pretty, directionColor } from "../lib/display";
 import Map from "./Map";
+import ResearchCard from "./ResearchCard";
+import type { ExternalContext } from "@alice/agents";
 import ArtifactWorkspace from "./ArtifactWorkspace";
 import dynamic from "next/dynamic";
 const AgentNetwork = dynamic(() => import("./AgentNetwork"));
@@ -24,6 +26,7 @@ export default function Dashboard({
   onConversation,
 }: {
   run: {
+    research?: ExternalContext;
     id: string;
     campaign: Campaign;
     result: Result;
@@ -121,6 +124,9 @@ export default function Dashboard({
           </button>
         ))}
       </nav>
+      {tab === "Evidence" && run.research && (
+        <ResearchCard context={run.research} expanded />
+      )}
       {(tab === "Timeline" || tab === "Evidence") && (
         <ArtifactWorkspace
           run={run}

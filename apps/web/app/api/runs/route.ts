@@ -1,5 +1,11 @@
 import { requireUser, checkOrigin, authError } from "../../../lib/auth";
-import { withAccount, storeGet, getRunSummary } from "@alice/agents";
+import {
+  withAccount,
+  storeGet,
+  getRunSummary,
+  ownedResearch,
+  withExternalContext,
+} from "@alice/agents";
 import { startRun } from "@alice/agents";
 import { CampaignSchema } from "@alice/contracts";
 export const runtime = "nodejs";
@@ -33,10 +39,17 @@ export async function POST(req: Request) {
   try {
     checkOrigin(req);
     const user = await requireUser();
-    const c = CampaignSchema.parse(await req.json());
+    const raw = await req.json();
+    const c = CampaignSchema.parse(raw);
     if (new Set(c.variants.map((v) => v.id)).size !== c.variants.length)
       throw new Error("Every direction must have a unique ID");
-    const r = await withAccount(user.id, () => startRun(c, user.id));
+    const research = await ownedResearch(
+      user.id,
+      typeof raw.research_id === "string" ? raw.research_id : undefined,
+    );
+    const r = await withAccount(user.id, () =>
+      startRun(withExternalContext(c, research), user.id, research),
+    );
     return Response.json({ run_id: r.id, mock: r.mock, replay: r.replay });
   } catch (e) {
     return authError(e);

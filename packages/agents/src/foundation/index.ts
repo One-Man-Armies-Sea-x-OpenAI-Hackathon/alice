@@ -13,7 +13,7 @@ import {
 import { z } from "zod";
 import pLimit from "p-limit";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { tiers, type Campaign } from "@alice/contracts";
 export const root = () => {
@@ -73,6 +73,7 @@ export class Budget {
   failures = 0;
   tokens = 0;
   estimated_usd = 0;
+  web_search_calls = 0;
   cap: number;
   shouldStop?: () => boolean;
   constructor(cap = Number(process.env.MAX_CALLS_PER_RUN || 16000)) {
@@ -132,9 +133,42 @@ export function classifyError(e: unknown) {
   const err = e as {
     status?: number;
     code?: string;
+    name?: string;
+    constructor?: { name?: string };
+    cause?: { code?: string };
     error?: { code?: string };
   };
   const code = err.code || err.error?.code;
+  const type = err.constructor?.name || err.name;
+  // Docs MCP: https://developers.openai.com/api/docs/guides/error-codes
+  // Connection failures and timeouts have no HTTP status; they are not model-access errors.
+  if (
+    [err.name, type].some((n) =>
+      [
+        "APIConnectionError",
+        "APIConnectionTimeoutError",
+        "APITimeoutError",
+      ].includes(n ?? ""),
+    ) ||
+    [
+      "ECONNRESET",
+      "ETIMEDOUT",
+      "UND_ERR_CONNECT_TIMEOUT",
+      "EAI_AGAIN",
+    ].includes(err.cause?.code ?? "")
+  )
+    return "transient";
+  if (
+    [err.name, type].some((n) =>
+      [
+        "ZodError",
+        "SyntaxError",
+        "ModelBehaviorError",
+        "MaxTurnsExceededError",
+      ].includes(n ?? ""),
+    )
+  )
+    return "output";
   return code === "credit_balance_exhausted"
     ? "credit"
     : err.status === 429
@@ -172,6 +206,12 @@ export async function structured<T>(
     mock: () => T;
     guardrail?: () => Promise<{ decision: string; reason: string }>;
     imageDataUrl?: string;
+    webSearch?: boolean;
+    onSources?: (
+      sources: { url: string; title: string }[],
+      calls: number,
+      retrievedAt: string,
+    ) => void;
   },
 ): Promise<T> {
   const model = models()[options.role ?? "analysis"];
@@ -185,7 +225,15 @@ export async function structured<T>(
           account_id: accountContext.getStore() ?? "local-tests",
           name,
           model,
-          reasoning_effort: model === DEFAULT_PERSONA_MODEL ? "none" : null,
+          reasoning_effort:
+            model === DEFAULT_PERSONA_MODEL
+              ? options.webSearch
+                ? "low"
+                : "none"
+              : null,
+          ...(options.webSearch
+            ? { web_search: { max_tool_calls: 2, max_output_tokens: 6000 } }
+            : {}),
           json,
           image_hash: options.imageDataUrl
             ? createHash("sha256").update(options.imageDataUrl).digest("hex")
@@ -201,11 +249,14 @@ export async function structured<T>(
   const cached = await storeGet("llm_cache", hash);
   if (cached) {
     budget.cache_hits++;
+    options.onSources?.(cached.sources ?? [], 0, cached.created);
     return schema.parse(cached.response);
   }
   return limiter(async () => {
     let data: T;
     let usage = { input_tokens: 0, output_tokens: 0 };
+    let sources: { url: string; title: string }[] = [];
+    let searchCalls = 0;
     if (mockMode()) {
       budget.take();
       data = schema.parse(options.mock());
@@ -228,7 +279,7 @@ export async function structured<T>(
         const client = new OpenAI({
           apiKey: all[pos],
           maxRetries: 0,
-          timeout: 60000,
+          timeout: options.webSearch ? 90000 : 60000,
         });
         try {
           setTracingExportApiKey(all[pos]);
@@ -280,7 +331,28 @@ export async function structured<T>(
               client.responses.create({
                 model,
                 ...(model === DEFAULT_PERSONA_MODEL
-                  ? { reasoning: { effort: "none" as const } }
+                  ? {
+                      reasoning: {
+                        effort: options.webSearch
+                          ? ("low" as const)
+                          : ("none" as const),
+                      },
+                    }
+                  : {}),
+                // Docs MCP: https://developers.openai.com/api/docs/guides/tools-web-search
+                // Cap: https://developers.openai.com/api/reference/resources/responses/methods/create
+                ...(options.webSearch
+                  ? {
+                      tools: [
+                        {
+                          type: "web_search" as const,
+                          search_context_size: "low" as const,
+                        },
+                      ],
+                      tool_choice: "required" as const,
+                      max_tool_calls: 2,
+                      include: ["web_search_call.action.sources" as const],
+                    }
                   : {}),
                 instructions,
                 // MCP: https://developers.openai.com/api/docs/guides/images-vision
@@ -307,12 +379,36 @@ export async function structured<T>(
                     strict: true,
                   },
                 },
-                max_output_tokens: 16000,
+                max_output_tokens: options.webSearch ? 6000 : 16000,
                 store: false,
               }),
             );
             if (response.status !== "completed")
               throw new Error("Model output was incomplete");
+            if (options.webSearch) {
+              const found = new Map<string, { url: string; title: string }>();
+              for (const item of response.output as any[]) {
+                if (item.type === "web_search_call") {
+                  searchCalls++;
+                  for (const source of item.action?.sources ?? [])
+                    if (source.url)
+                      found.set(source.url, {
+                        url: source.url,
+                        title: source.title || new URL(source.url).hostname,
+                      });
+                }
+                if (item.type === "message")
+                  for (const content of item.content ?? [])
+                    for (const citation of content.annotations ?? [])
+                      if (citation.type === "url_citation")
+                        found.set(citation.url, {
+                          url: citation.url,
+                          title:
+                            citation.title || new URL(citation.url).hostname,
+                        });
+              }
+              sources = [...found.values()];
+            }
             if (
               response.output.some(
                 (x) =>
@@ -332,7 +428,11 @@ export async function structured<T>(
           const rates = options.role === "reaction" ? [0.2, 1.2] : [2, 8];
           const cost =
             (usage.input_tokens * rates[0] + usage.output_tokens * rates[1]) /
-            1e6;
+              1e6 +
+            searchCalls * 0.01;
+          // Hosted web search: $10/1k calls, Docs MCP checked 2026-11-07.
+          // https://developers.openai.com/api/docs/pricing
+          budget.web_search_calls += searchCalls;
           budget.estimated_usd += cost;
           spent.set(pos, (spent.get(pos) || 0) + cost);
           budget.tokens += usage.input_tokens + usage.output_tokens;
@@ -345,7 +445,11 @@ export async function structured<T>(
             }
             continue;
           }
-          if ((kind === "rate" || kind === "transient") && attempt++ < 3) {
+          if (
+            !options.webSearch &&
+            (kind === "rate" || kind === "transient" || kind === "output") &&
+            attempt++ < (kind === "output" ? 1 : 3)
+          ) {
             await new Promise((r) =>
               setTimeout(
                 r,
@@ -355,8 +459,32 @@ export async function structured<T>(
             continue;
           }
           const err = e as any;
+          // Diagnostic categories only: never write request payloads, model output or credentials.
+          try {
+            mkdirSync(resolve(root(), ".data"), { recursive: true });
+            appendFileSync(
+              resolve(root(), ".data/provider-errors.jsonl"),
+              JSON.stringify({
+                at: new Date().toISOString(),
+                step: name,
+                name: err.name,
+                type: err.constructor?.name,
+                status: err.status,
+                code: err.code,
+                cause: err.cause?.code ?? err.cause?.name,
+                issues: err.issues?.map((i: any) => ({
+                  code: i.code,
+                  path: i.path,
+                })),
+              }) + "\n",
+            );
+          } catch {
+            /* Diagnostics must not replace the original error. */
+          }
           throw new Error(
-            `OpenAI ${name} failed (key position ${pos + 1}, ${err.status ?? "validation"}, ${err.code ?? kind}). ${kind === "auth" ? "Check server key access." : kind === "fatal" ? "Check model access and request configuration." : "Retry later."}`,
+            name === "guardrail" && !err.status
+              ? `The campaign safety check could not complete (${kind === "output" ? "invalid model response" : kind === "transient" ? "connection interrupted" : "provider processing error"}). Your brief was not rejected. Please send it again.`
+              : `OpenAI ${name} could not complete (key position ${pos + 1}, ${err.status ?? kind}). ${kind === "auth" ? "Check server key access." : kind === "fatal" && err.status ? "Check model access and request configuration." : "Please try again."}`,
           );
         }
       }
@@ -368,9 +496,11 @@ export async function structured<T>(
       response: data!,
       model,
       tokens: usage,
+      ...(options.webSearch ? { sources, search_calls: searchCalls } : {}),
       created: new Date().toISOString(),
       mock: mockMode(),
     });
+    options.onSources?.(sources, searchCalls, new Date().toISOString());
     return data!;
   });
 }

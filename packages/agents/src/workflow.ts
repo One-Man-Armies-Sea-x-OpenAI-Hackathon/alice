@@ -1,3 +1,4 @@
+import type { ExternalContext } from "./research";
 import { effectivenessFindings } from "./effectiveness";
 import pLimit from "p-limit";
 import { randomUUID } from "node:crypto";
@@ -53,6 +54,7 @@ export type Run = {
   cancelled: boolean;
   started: number;
   owner_id?: string;
+  research?: ExternalContext;
 };
 const globalRuns = globalThis as unknown as { aliceRuns?: Map<string, Run> };
 const runs = (globalRuns.aliceRuns ??= new Map<string, Run>());
@@ -336,6 +338,7 @@ async function perform(run: Run) {
     await storePut("runs", run.id, {
       campaign: c,
       user_id: run.owner_id,
+      research: run.research,
       status: "running",
       mock: run.mock,
     });
@@ -592,6 +595,7 @@ async function perform(run: Run) {
       await storePut("runs", run.id, {
         campaign: c,
         user_id: run.owner_id,
+        research: run.research,
         status: run.status,
         error: run.error,
         mock: run.mock,
@@ -606,6 +610,7 @@ async function save(run: Run) {
     ...previous,
     campaign: run.campaign,
     user_id: run.owner_id,
+    research: run.research,
     status: run.status,
     mock: run.mock,
   });
@@ -645,6 +650,7 @@ export async function getRun(id: string): Promise<Run | null> {
     cancelled: false,
     started: Date.now(),
     owner_id: saved.user_id,
+    research: saved.research,
   };
 }
 export async function getRunSummary(id: string) {
@@ -658,7 +664,11 @@ export async function getRunSummary(id: string) {
     reactions: run.reactions.length,
   };
 }
-export async function startRun(c: Campaign, owner_id?: string) {
+export async function startRun(
+  c: Campaign,
+  owner_id?: string,
+  research?: ExternalContext,
+) {
   if (["1", "true"].includes(process.env.DEMO_CACHE ?? "")) {
     const { demos } = await import("../../contracts/src/demos");
     for (const [name, demo] of Object.entries(demos)) {
@@ -715,10 +725,12 @@ export async function startRun(c: Campaign, owner_id?: string) {
     cancelled: false,
     started: Date.now(),
     owner_id,
+    research,
   };
   await storePut("runs", run.id, {
     campaign: c,
     user_id: owner_id,
+    research,
     status: "running",
     mock: run.mock,
   });

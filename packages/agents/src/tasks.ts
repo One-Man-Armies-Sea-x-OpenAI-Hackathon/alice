@@ -8,6 +8,7 @@ type Task = {
   updated_at: number;
   result?: unknown;
   error?: string;
+  phase?: string;
 };
 const state = globalThis as typeof globalThis & {
   aliceTasks?: Map<string, Task>;
@@ -21,7 +22,7 @@ function prune() {
 export function createTask(
   owner: string,
   kind: string,
-  run: () => Promise<unknown>,
+  run: (progress: (phase: string) => void) => Promise<unknown>,
 ) {
   prune();
   if (
@@ -47,7 +48,12 @@ export function createTask(
     task.state = "running";
     task.updated_at = Date.now();
     try {
-      const result = await run();
+      const result = await run((phase) => {
+        if (tasks.has(task.id)) {
+          task.phase = phase;
+          task.updated_at = Date.now();
+        }
+      });
       if (tasks.has(task.id)) {
         task.result = result;
         task.state = "done";

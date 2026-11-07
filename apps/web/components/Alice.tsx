@@ -13,6 +13,8 @@ import {
 import { pretty, tiers, plannedCalls } from "../lib/display";
 import { readJson, requestTask, pollTask } from "../lib/http";
 import CampaignDirections from "./CampaignDirections";
+import ResearchCard from "./ResearchCard";
+import type { ExternalContext } from "@alice/agents";
 import dynamic from "next/dynamic";
 const Map = dynamic(() => import("./Map"), { ssr: false });
 const Dashboard = dynamic(() => import("./Dashboard"), {
@@ -20,6 +22,7 @@ const Dashboard = dynamic(() => import("./Dashboard"), {
 });
 const ArtifactWorkspace = dynamic(() => import("./ArtifactWorkspace"));
 type Run = {
+  research?: ExternalContext;
   id: string;
   campaign: Campaign;
   result: Result;
@@ -33,6 +36,9 @@ type Run = {
   error?: string;
 };
 type Chat = {
+  research?: ExternalContext;
+  researchEnabled?: boolean;
+  phase?: string;
   id: string;
   title: string;
   campaign: Campaign;
@@ -110,6 +116,9 @@ export default function Alice({
   const [questions, setQuestions] = useState<any[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [freeAnswer, setFreeAnswer] = useState("");
+  const [externalResearch, setExternalResearch] = useState(
+    user.preferences?.external_research ?? true,
+  );
   const [toolsOpen, setToolsOpen] = useState(false);
   const [attachments, setAttachments] = useState<
     { name: string; text: string }[]
@@ -356,6 +365,7 @@ export default function Alice({
         }),
         campaign,
         draft: briefInput,
+        researchEnabled: externalResearch,
         questions,
         answers,
       };
@@ -373,7 +383,13 @@ export default function Alice({
     }
     activeRef.current = c.id;
     setCampaign(c);
-    setBriefInput(draft?.notes ?? "");
+    setBriefInput(
+      (draft?.notes ?? "").replace(
+        /\n*\[ALICE external context[^]*?\[End external context\]/g,
+        "",
+      ),
+    );
+    setExternalResearch(user.preferences?.external_research ?? true);
     setActive(c.id);
     setRun(null);
     setEvents([]);
@@ -484,6 +500,9 @@ export default function Alice({
     setActive(chat.id);
     setCampaign(clone(chat.campaign));
     setBriefInput(chat.draft ?? "");
+    setExternalResearch(
+      chat.researchEnabled ?? user.preferences?.external_research ?? true,
+    );
     setQuestions(chat.questions ?? []);
     setAnswers(chat.answers ?? {});
     setRun(null);
@@ -525,7 +544,11 @@ export default function Alice({
       }
     }
   };
-  async function start(c: Campaign, chatId = activeRef.current) {
+  async function start(
+    c: Campaign,
+    chatId = activeRef.current,
+    researchId?: string,
+  ) {
     if (deletedChats.current.has(chatId)) return;
     updateChat(chatId, {
       status: "running",
@@ -550,7 +573,12 @@ export default function Alice({
         await fetch("/api/runs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(c),
+          body: JSON.stringify({
+            ...c,
+            research_id:
+              researchId ??
+              chatsRef.current.find((x) => x.id === chatId)?.research?.id,
+          }),
         }),
       );
       updateChat(chatId, { runId: body.run_id, status: "running" });
@@ -625,18 +653,30 @@ export default function Alice({
   ) {
     if (pendingIntakes.current.has(chatId)) return;
     pendingIntakes.current.add(chatId);
-    updateChat(chatId, { status: "preparing", error: undefined });
+    updateChat(chatId, {
+      status: "preparing",
+      error: undefined,
+      phase: "Reading the brief",
+    });
+    const prior = chatsRef.current.find((x) => x.id === chatId);
+    const onProgress = (phase: string) => updateChat(chatId, { phase });
     try {
       const body = taskId
-        ? await pollTask({ task_id: taskId })
+        ? await pollTask({ task_id: taskId }, onProgress)
         : await requestTask(
             "/api/clarify",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ campaign: c, answers: confirmed }),
+              body: JSON.stringify({
+                campaign: c,
+                answers: confirmed,
+                research: prior?.researchEnabled ?? externalResearch,
+                research_id: prior?.research?.id,
+              }),
             },
             (taskId) => updateChat(chatId, { taskId }),
+            onProgress,
           );
       if (deletedChats.current.has(chatId)) return;
       const qs = [
@@ -647,6 +687,8 @@ export default function Alice({
       ];
       updateChat(chatId, {
         taskId: undefined,
+        phase: undefined,
+        research: body.research ?? prior?.research,
         campaign: body.campaign,
         title: body.campaign.brand || "New campaign",
         questions: qs,
@@ -659,7 +701,12 @@ export default function Alice({
         setQuestions(qs);
         setBusy(false);
       }
-      if (body.ready) await start(body.campaign, chatId);
+      if (body.ready)
+        await start(
+          body.campaign,
+          chatId,
+          body.research?.id ?? prior?.research?.id,
+        );
     } catch (e) {
       const error =
         e instanceof Error ? e.message : "Could not read the brief.";
@@ -716,6 +763,7 @@ export default function Alice({
         campaign: c,
         status: "preparing",
         draft: "",
+        researchEnabled: externalResearch,
         messages: [...(old?.messages ?? []), { role: "user", text }],
       };
       return old ? xs.map((x) => (x.id === chatId ? next : x)) : [next, ...xs];
@@ -1035,7 +1083,16 @@ export default function Alice({
                 onDraft={fresh}
                 onConversation={(messages) =>
                   updateChat(active, {
-                    messages: [{ role: "user", text: c.notes }, ...messages],
+                    messages: [
+                      {
+                        role: "user",
+                        text: c.notes.replace(
+                          /\n*\[ALICE external context[^]*?\[End external context\]/g,
+                          "",
+                        ),
+                      },
+                      ...messages,
+                    ],
                   })
                 }
                 onReplay={replay}
@@ -1309,7 +1366,16 @@ export default function Alice({
                   onDraft={fresh}
                   onConversation={(messages) =>
                     updateChat(active, {
-                      messages: [{ role: "user", text: c.notes }, ...messages],
+                      messages: [
+                        {
+                          role: "user",
+                          text: c.notes.replace(
+                            /\n*\[ALICE external context[^]*?\[End external context\]/g,
+                            "",
+                          ),
+                        },
+                        ...messages,
+                      ],
                     })
                   }
                 />
@@ -1361,6 +1427,9 @@ export default function Alice({
                       <span>{m.text}</span>
                     </div>
                   ))}
+                  {currentChat?.research && (
+                    <ResearchCard context={currentChat.research} />
+                  )}
                   {questions.length > 0 && (
                     <div className="clarify-thread">
                       <div className="assistant-heading">
@@ -1422,7 +1491,8 @@ export default function Alice({
                     <div className="assistant-heading">
                       <Logo />
                       <span role="status">
-                        Reading the brief <LoadingDots />
+                        {currentChat?.phase || "Reading the brief"}{" "}
+                        <LoadingDots />
                       </span>
                     </div>
                   )}
@@ -1492,7 +1562,9 @@ export default function Alice({
                         >
                           ⚙ Tools{" "}
                           <span className="count">
-                            {1 + Object.values(c.tools).filter(Boolean).length}
+                            {1 +
+                              Number(externalResearch) +
+                              Object.values(c.tools).filter(Boolean).length}
                           </span>
                         </button>
                         {toolsOpen && (
@@ -1512,6 +1584,30 @@ export default function Alice({
                               </span>
                               <span>Always on</span>
                             </div>
+                            <label>
+                              <span>
+                                External research
+                                <small>
+                                  Current public sources before the planner
+                                  responds. Adds up to 2 model calls and 2
+                                  search tool uses; usage fees apply.
+                                </small>
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={externalResearch}
+                                onChange={(e) => {
+                                  setExternalResearch(e.target.checked);
+                                  updateChat(active, {
+                                    researchEnabled: e.target.checked,
+                                  });
+                                }}
+                              />
+                            </label>
+                            <p className="muted">
+                              Search uses public brand and category terms.
+                              Attachments stay out of web queries.
+                            </p>
                             {(["risk", "calendar", "rewrite"] as const).map(
                               (key) => (
                                 <label key={key}>

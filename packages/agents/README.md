@@ -9,3 +9,5 @@ Credit exhaustion alone advances an active call to another key. Rate and spend l
 Rewrites rescore every archetype, including unaffected controls where present. They do not change originals. Mock reruns are never called verified. Both directions of the baseline comparison are preserved.
 
 The November revision uses GPT-5.6 Luna with reasoning effort none for individual reaction calls. Individual profiles have persona_count=1; the legacy archetype identifiers remain wire-compatible. Cache keys include account and reasoning configuration. `artifact` owns persisted discussion and constrained chart/scenario changes. `effectiveness` identifies repeated low-interest feedback about vague benefits so the fix loop can address effectiveness as well as cultural risk.
+
+Public research: `researchCampaign` uses two bounded model steps (public terms, then Responses web_search) before clarification. `ownedResearch` protects persisted source snapshots; mock/replay never search. Private MCP business-data services are not configured. See `scripts/research-qa.mjs` for integration checks.

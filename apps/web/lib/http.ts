@@ -31,7 +31,7 @@ export async function pollTask<T = any>(
     if (task.state === "done") return task.result;
     if (task.state === "failed")
       throw new Error(task.error || "Processing failed. Please try again.");
-    onProgress?.(task.state);
+    onProgress?.(task.phase || task.state);
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   throw new Error(
@@ -43,12 +43,13 @@ export async function requestTask<T = any>(
   url: string,
   init: RequestInit,
   onAccepted?: (id: string) => void,
+  onProgress?: (phase: string) => void,
 ) {
   const headers = new Headers(init.headers);
   headers.set("Prefer", "respond-async");
   const initial = await readJson(await fetch(url, { ...init, headers }));
   if (initial.task_id) onAccepted?.(initial.task_id);
-  return pollTask<T>(initial);
+  return pollTask<T>(initial, onProgress);
 }
 
 export async function uploadReference(

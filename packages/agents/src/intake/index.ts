@@ -4,6 +4,12 @@ import {
   GuardrailSchema,
   type Campaign,
 } from "@alice/contracts";
+import {
+  researchCampaign,
+  withExternalContext,
+  ownedResearch,
+  type ExternalContext,
+} from "../research";
 import { structured, prompt, Budget } from "../foundation/index";
 export async function guardrail(c: Campaign, budget: Budget) {
   const result = await structured(
@@ -30,12 +36,49 @@ export async function guardrail(c: Campaign, budget: Budget) {
 export async function clarify(
   raw: unknown,
   answers: Record<string, string> = {},
+  options: {
+    research?: boolean;
+    userId?: string;
+    researchId?: string;
+    onProgress?: (phase: string) => void;
+  } = {},
 ) {
-  const c = CampaignSchema.parse(raw);
+  let c = CampaignSchema.parse(raw);
   if (new Set(c.variants.map((v) => v.id)).size !== c.variants.length)
     throw new Error("Every direction must have a unique ID");
   const b = new Budget(16);
+  options.onProgress?.("Checking campaign safety");
   const decision = await guardrail(c, b);
+  let external: ExternalContext | undefined = options.userId
+    ? await ownedResearch(options.userId, options.researchId)
+    : undefined;
+  c = withExternalContext(c, external);
+  if (
+    options.research &&
+    options.userId &&
+    (!external || external.status === "needs_context")
+  ) {
+    const researched = await researchCampaign(
+      {
+        ...c,
+        notes:
+          c.notes +
+          (Object.keys(answers).length
+            ? "\nClarifications: " + JSON.stringify(answers)
+            : ""),
+      },
+      b,
+      options.userId,
+      options.onProgress,
+    );
+    c = researched.campaign;
+    external = researched.context;
+  }
+  options.onProgress?.(
+    external?.status === "ready"
+      ? "Planning with sourced external context"
+      : "Reading the brief",
+  );
   const questions: {
     id: string;
     text: string;
@@ -81,7 +124,7 @@ export async function clarify(
     ClarifierSchema,
     prompt("clarifier") +
       " Ask at most three focused questions per turn, and continue with another turn if decision-critical context remains missing. Consider intended audience, objective, event facts, timing, placement, budget and desired behavior. Do not invent historical evidence. Never repeat an answered question. Decide readiness yourself.",
-    { campaign: c, answers },
+    { campaign: c, answers, external_context: external ?? null },
     b,
     {
       agent: true,
@@ -142,6 +185,7 @@ export async function clarify(
   if (answers.timing) next.timing = answers.timing;
   return {
     ...result,
+    research: external,
     campaign: CampaignSchema.parse(next),
     questions: result.questions.filter((q) => !answers[q.id]),
     ready: result.ready,
