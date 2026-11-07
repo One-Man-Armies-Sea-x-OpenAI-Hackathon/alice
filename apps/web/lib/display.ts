@@ -15,8 +15,8 @@ export const dimensions = [
   "tier",
 ] as const;
 export const tiers = {
-  quick: { personas: 500, archetypes: 500 },
-  standard: { personas: 1500, archetypes: 1500 },
+  quick: { personas: 500, archetypes: 24 },
+  standard: { personas: 1500, archetypes: 48 },
 };
 export function directionId(index: number) {
   let value = index + 1,
@@ -44,13 +44,32 @@ export function plannedCalls(c: {
   variants: unknown[];
   tools: { risk: boolean; rewrite: boolean };
 }) {
-  const n = tiers[c.depth].personas,
+  const n = tiers[c.depth].archetypes,
     count = c.variants.length;
-  return (
-    n * (count + (count > 1 ? 1 : 0)) +
-    8 +
-    (c.tools.risk && c.tools.rewrite ? 2 * (n + 2) * Math.min(3, count) : 0)
+  return Math.ceil(
+    (n * (count + (count > 1 ? 1 : 0)) +
+      8 +
+      (c.tools.risk && c.tools.rewrite
+        ? 2 * (n + 2) * Math.min(3, count)
+        : 0)) *
+      1.2,
   );
+}
+export function plannedSeconds(
+  c: {
+    depth: keyof typeof tiers;
+    variants: unknown[];
+    tools: { risk: boolean; rewrite: boolean };
+  },
+  concurrency = 8,
+) {
+  const n = tiers[c.depth].archetypes;
+  const reaction = n * (c.variants.length + (c.variants.length > 1 ? 1 : 0));
+  const fixes =
+    c.tools.risk && c.tools.rewrite
+      ? 2 * (n + 2) * Math.min(3, c.variants.length)
+      : 0;
+  return Math.ceil(((reaction + fixes) / Math.max(1, concurrency)) * 10 + 100);
 }
 export const pretty = (s: string) =>
   ({

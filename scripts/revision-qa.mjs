@@ -52,9 +52,13 @@ for (let i = 0; i < 240; i++) {
   await new Promise((r) => setTimeout(r, 250));
 }
 assert.equal(run.status, "done", run.error);
-assert.equal(run.audience.archetypes.length, 500);
-assert.ok(run.audience.archetypes.every((p) => p.persona_count === 1));
-assert.equal(run.reactions.length, 500);
+assert.equal(run.audience.archetypes.length, 24);
+assert.equal(
+  run.audience.archetypes.reduce((sum, p) => sum + p.persona_count, 0),
+  500,
+);
+assert.equal(run.audience.personas.count, 500);
+assert.equal(run.reactions.length, 24);
 await json(
   await a.put("/api/conversations", {
     data: {
@@ -164,7 +168,7 @@ assert.ok((await json(await b.get("/api/auth/me"))).user);
 await json(await b.delete("/api/auth/account", { data: { password: pass } }));
 await Promise.all([a.dispose(), b.dispose(), guest.dispose(), old.dispose()]);
 console.log({
-  individual_reactions: run.reactions.length,
+  archetype_reactions: run.reactions.length,
   calls: run.result.llm_calls,
   account_isolation: true,
   password_rotation: true,

@@ -133,3 +133,81 @@ test("network and SDK output failures are not mislabeled as model-access failure
     assert.equal(classifyError({ name }), "output");
   assert.equal(classifyError({ status: 400 }), "fatal");
 });
+
+test("grouped estimates use archetypes while preserving the full agent audience", () => {
+  const c = {
+    ...demos["langkah-run"],
+    variants: demos["langkah-run"].variants.slice(0, 2),
+    tools: { risk: false, rewrite: false, calendar: true },
+  };
+  const quick = estimate(c),
+    standard = estimate({ ...c, depth: "standard" });
+  assert.equal(quick.personas, 500);
+  assert.equal(quick.archetypes, 24);
+  assert.equal(quick.reaction_calls, 72); // 48 initial + 24 fresh winner reactions.
+  assert.equal(quick.calls, 96);
+  assert.equal(quick.seconds, 190);
+  assert.equal(standard.personas, 1500);
+  assert.equal(standard.archetypes, 48);
+  assert.equal(standard.reaction_calls, 144);
+});
+
+test("effectiveness fixes count represented agents rather than treating unequal groups equally", async () => {
+  const { effectivenessFindings } = await import("../src/effectiveness");
+  const c = {
+    ...demos["langkah-run"],
+    variants: [demos["langkah-run"].variants[0]],
+  };
+  const people = Array.from({ length: 3 }, (_, i) => ({
+    id: `arc-${i}`,
+    persona_count: i === 0 ? 80 : 10,
+    segment: {
+      region: "jabodetabek",
+      age_band: "25-34",
+      platform: "instagram",
+      religion: "islam",
+    },
+  })) as any;
+  const weak = (a: any) => ({
+    ...mockReaction(c, a, c.variants[0]),
+    attention: 0.2,
+    sentiment: 0,
+    reason: "Manfaatnya belum jelas",
+    sample_comment: "Pesannya terlalu umum",
+  });
+  const strong = (a: any) => ({
+    ...mockReaction(c, a, c.variants[0]),
+    attention: 0.8,
+    sentiment: 0.5,
+    reason: "Manfaatnya relevan",
+    sample_comment: "Menarik",
+  });
+  const result: any = {
+    per_variant: [
+      {
+        variant_id: "A",
+        by_dimension: {
+          region: [{ group: "jabodetabek", n: 100, backlash: 0 }],
+        },
+      },
+    ],
+  };
+  assert.equal(
+    effectivenessFindings(
+      c,
+      result,
+      [weak(people[0]), strong(people[1]), strong(people[2])],
+      people,
+    ).length,
+    1,
+  );
+  assert.equal(
+    effectivenessFindings(
+      c,
+      result,
+      [strong(people[0]), weak(people[1]), weak(people[2])],
+      people,
+    ).length,
+    0,
+  );
+});

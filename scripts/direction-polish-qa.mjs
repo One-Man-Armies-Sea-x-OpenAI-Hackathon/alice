@@ -44,6 +44,13 @@ const browser = await chromium.launch(),
 const errors = [];
 p.on("pageerror", (e) => errors.push(e.message));
 try {
+  await p.route("**/api/health", async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    await route.fulfill({
+      json: { ...data, limits: { ...data.limits, max_calls: 700 } },
+    });
+  });
   await p.goto(base);
   await p
     .getByRole("heading", { name: "What are we testing today?" })
@@ -208,7 +215,7 @@ try {
   }
   assert.equal(run.status, "done", run.error);
   assert.equal(run.result.per_variant.length, 5);
-  assert.equal(run.reactions.length, 2500);
+  assert.equal(run.reactions.length, 120);
   const chartResponse = await api.post(`/api/runs/${run_id}/discuss`, {
     data: { message: "Add an impact chart for direction AA by age" },
   });
